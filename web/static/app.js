@@ -202,7 +202,7 @@ function renderComparisons(state) {
   cell(3, 5, letterNode("Y"));
 }
 
-// --- Parity + segment rows ---------------------------------------------------
+// --- Parity + segment grid ----------------------------------------------------
 
 function nextParity(current) {
   if (current === undefined || current === null) return "Pair";
@@ -222,41 +222,94 @@ function nextSegmentValue(current) {
   return null;
 }
 
-function segmentClass(current) {
-  if (current === true) return "seg-on";
-  if (current === false) return "seg-off";
-  return "seg-unknown";
+// Trapezoid outlines for each of the 7 segments, laid out on a 0..60 x 0..100
+// viewBox -- a recognizable seven-segment digit shape, not a pixel-perfect
+// replica of the real game's glyph.
+const SEGMENT_POINTS = {
+  a: "16,4 44,4 40,12 20,12",
+  f: "8,12 16,16 16,46 8,50",
+  b: "52,12 44,16 44,46 52,50",
+  g: "16,46 40,46 44,50 40,54 16,54 12,50",
+  e: "8,52 16,56 16,86 8,90",
+  c: "52,52 44,56 44,86 52,90",
+  d: "20,88 40,88 44,96 16,96",
+};
+
+function buildDigitSvg(pos, segmentState) {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("viewBox", "0 0 60 100");
+  svg.setAttribute("class", "digit-svg");
+
+  // "Éteint" is rendered as a diagonal hatch pattern rather than a flat
+  // fill, so it stays visually distinct from "allumé" (solid) at a glance.
+  const defs = document.createElementNS(svgNS, "defs");
+  const pattern = document.createElementNS(svgNS, "pattern");
+  const patternId = `hatch-${pos}`;
+  pattern.setAttribute("id", patternId);
+  pattern.setAttribute("width", "6");
+  pattern.setAttribute("height", "6");
+  pattern.setAttribute("patternTransform", "rotate(45)");
+  pattern.setAttribute("patternUnits", "userSpaceOnUse");
+  const line = document.createElementNS(svgNS, "line");
+  line.setAttribute("x1", "0");
+  line.setAttribute("y1", "0");
+  line.setAttribute("x2", "0");
+  line.setAttribute("y2", "6");
+  line.setAttribute("stroke", "#c66");
+  line.setAttribute("stroke-width", "2");
+  pattern.appendChild(line);
+  defs.appendChild(pattern);
+  svg.appendChild(defs);
+
+  for (const seg of SEGMENTS) {
+    const current = segmentState[`${pos}${seg}`];
+    const poly = document.createElementNS(svgNS, "polygon");
+    poly.setAttribute("points", SEGMENT_POINTS[seg]);
+    poly.setAttribute(
+      "fill",
+      current === true ? "#333" : current === false ? `url(#${patternId})` : "none",
+    );
+    poly.setAttribute(
+      "class",
+      "seg-shape " + (current === undefined ? "seg-shape-unknown" : current ? "seg-shape-on" : "seg-shape-off"),
+    );
+    poly.addEventListener("click", () => {
+      runMutation(() => postClue({ type: "segment", pos, seg, value: nextSegmentValue(current) }));
+    });
+    svg.appendChild(poly);
+  }
+  return svg;
 }
 
-function renderPositionRows(state) {
-  const container = document.getElementById("pos-rows");
+function renderPositionGrid(state) {
+  const container = document.getElementById("pos-grid");
   container.innerHTML = "";
 
-  for (const pos of POSITIONS) {
-    const row = document.createElement("div");
-    row.className = "pos-row";
+  const cell = (row, col, pos) => {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pos-cell";
+    wrapper.style.gridRow = String(row);
+    wrapper.style.gridColumn = String(col);
+
+    const label = document.createElement("div");
+    label.className = "pos-label";
+    label.textContent = pos;
+    wrapper.appendChild(label);
+
+    wrapper.appendChild(buildDigitSvg(pos, state.segment_state));
 
     const parityValue = state.parity[pos];
     const parityChip = makeChip(parityLabel(parityValue), { extraClass: "parity-chip" }, () => {
       runMutation(() => postClue({ type: "parity", pos, value: nextParity(parityValue) }));
     });
-    row.appendChild(parityChip);
+    wrapper.appendChild(parityChip);
 
-    const label = document.createElement("span");
-    label.className = "pos-label";
-    label.textContent = pos;
-    row.appendChild(label);
+    container.appendChild(wrapper);
+  };
 
-    for (const seg of SEGMENTS) {
-      const segValue = state.segment_state[`${pos}${seg}`];
-      const chip = makeChip(seg, { extraClass: "seg-chip " + segmentClass(segValue) }, () => {
-        runMutation(() => postClue({ type: "segment", pos, seg, value: nextSegmentValue(segValue) }));
-      });
-      row.appendChild(chip);
-    }
-
-    container.appendChild(row);
-  }
+  cell(1, 1, "T"); cell(1, 2, "U"); cell(1, 3, "V");
+  cell(2, 1, "W"); cell(2, 2, "X"); cell(2, 3, "Y");
 }
 
 // --- Main render --------------------------------------------------------------
@@ -301,7 +354,7 @@ function render(state) {
   );
 
   renderComparisons(state);
-  renderPositionRows(state);
+  renderPositionGrid(state);
 
   document.getElementById("n-solutions").textContent = state.solutions.length;
   document.getElementById("solutions-list").textContent = state.solutions.join(" ; ");
@@ -354,19 +407,20 @@ async function refresh() {
 // shared in-memory state. Disable every control until the response is rendered.
 let inFlight = false;
 
-function allControls() {
-  return Array.from(document.querySelectorAll("button"));
-}
-
 async function runMutation(fn) {
   if (inFlight) return;
   inFlight = true;
-  const controls = allControls();
-  controls.forEach((c) => { c.disabled = true; });
+  const buttons = Array.from(document.querySelectorAll("button"));
+  // SVG polygons have no `disabled` attribute -- guard them with a CSS class
+  // that turns off pointer-events instead.
+  const segments = Array.from(document.querySelectorAll(".seg-shape"));
+  buttons.forEach((c) => { c.disabled = true; });
+  segments.forEach((s) => { s.classList.add("seg-shape-disabled"); });
   try {
     render(await fn());
   } finally {
-    controls.forEach((c) => { c.disabled = false; });
+    buttons.forEach((c) => { c.disabled = false; });
+    segments.forEach((s) => { s.classList.remove("seg-shape-disabled"); });
     inFlight = false;
   }
 }
