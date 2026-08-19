@@ -39,12 +39,30 @@ def test_post_clue_row_total():
     assert r.get_json()["row_totals"]["J"] == 3
 
 
+def test_post_clue_row_total_null_value_unsets():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    r = client.post("/api/clue", json={"type": "row_total", "row": "J", "value": None})
+    assert r.status_code == 200
+    assert "J" not in r.get_json()["row_totals"]
+
+
 def test_post_clue_col_total():
     app = create_app()
     client = app.test_client()
     r = client.post("/api/clue", json={"type": "col_total", "col": "A", "value": 2})
     assert r.status_code == 200
     assert r.get_json()["col_totals"]["A"] == 2
+
+
+def test_post_clue_col_total_null_value_unsets():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "col_total", "col": "A", "value": 2})
+    r = client.post("/api/clue", json={"type": "col_total", "col": "A", "value": None})
+    assert r.status_code == 200
+    assert "A" not in r.get_json()["col_totals"]
 
 
 def test_post_clue_comparison():
@@ -55,6 +73,15 @@ def test_post_clue_comparison():
     assert ["T", ">", "U"] in r.get_json()["comparisons"]
 
 
+def test_post_clue_comparison_remove():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": ">", "right": "U"})
+    r = client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": ">", "right": "U", "remove": True})
+    assert r.status_code == 200
+    assert ["T", ">", "U"] not in r.get_json()["comparisons"]
+
+
 def test_post_clue_segment():
     app = create_app()
     client = app.test_client()
@@ -63,11 +90,69 @@ def test_post_clue_segment():
     assert r.get_json()["segment_state"]["Ta"] is True
 
 
+def test_post_clue_segment_null_value_unsets():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "segment", "pos": "T", "seg": "a", "value": True})
+    r = client.post("/api/clue", json={"type": "segment", "pos": "T", "seg": "a", "value": None})
+    assert r.status_code == 200
+    assert "Ta" not in r.get_json()["segment_state"]
+
+
 def test_post_clue_unknown_type_returns_400():
     app = create_app()
     client = app.test_client()
     r = client.post("/api/clue", json={"type": "bogus"})
     assert r.status_code == 400
+
+
+def test_post_clue_row_total_missing_row_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "row_total", "value": 3})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_post_clue_col_total_missing_col_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "col_total", "value": 2})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_post_clue_parity_missing_pos_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "parity", "value": "Pair"})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_post_clue_comparison_missing_field_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": ">"})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_post_clue_segment_missing_seg_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "segment", "pos": "T", "value": True})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_post_clue_missing_field_does_not_leave_orphaned_history_entry():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "row_total", "value": 3})  # missing "row" -> 400
+    r = client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    assert r.status_code == 200
+    assert r.get_json()["row_totals"]["J"] == 3
 
 
 def test_post_clue_contradiction_rolls_back_and_returns_400():

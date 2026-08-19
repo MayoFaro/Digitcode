@@ -56,12 +56,28 @@ def create_app() -> Flask:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
+    required_fields_by_type = {
+        "row_total": ("row",),
+        "col_total": ("col",),
+        "parity": ("pos",),
+        "comparison": ("left", "rel", "right"),
+        "segment": ("pos", "seg"),
+    }
+
     @app.post("/api/clue")
     def post_clue():
         body = request.get_json(force=True)
+        t = body.get("type")
+
+        if t not in required_fields_by_type:
+            return jsonify({"error": f"unknown clue type: {t}"}), 400
+
+        missing = [f for f in required_fields_by_type[t] if f not in body]
+        if missing:
+            return jsonify({"error": f"missing required field(s) for {t}: {', '.join(missing)}"}), 400
+
         state["history"].append(clone_clue(state["clue"]))
         clue = state["clue"]
-        t = body.get("type")
         if t == "row_total":
             if body.get("value") is None:
                 clue.row_totals.pop(body["row"], None)
@@ -90,9 +106,6 @@ def create_app() -> Flask:
                 clue.segment_state.pop(key, None)
             else:
                 clue.segment_state[key] = bool(body["value"])
-        else:
-            state["history"].pop()
-            return jsonify({"error": f"unknown clue type: {t}"}), 400
 
         try:
             return jsonify(current_state_payload())
