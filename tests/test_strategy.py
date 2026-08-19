@@ -97,3 +97,98 @@ def test_best_guess_value_all_candidates_excluded_returns_none():
     )
     # no candidates remain -> return None
     assert result is None
+
+
+from digitcode.strategy import evaluate_race_strategy
+from tests.conftest import make_solver
+
+
+def test_single_solution_is_a_certain_win():
+    s = make_solver({})
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is True
+    assert res["p_win"] == 1.0
+    assert res["guess_now"] is True
+
+
+def test_no_attempts_left_means_i_can_never_win():
+    s = make_solver({"Y": {7, 8}})
+    res = evaluate_race_strategy(s, Clue(), a_me=0, a_opp=2)
+    assert res["exact"] is True
+    assert res["p_win"] == 0.0
+
+
+def test_two_candidates_with_an_informative_question_is_a_certain_win():
+    # With 2 attempts and an informative question available, I can always
+    # ask it and then use my bonus guess on the resolved answer.
+    s = make_solver({"Y": {7, 8}})
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is True
+    assert res["p_win"] == 1.0
+    assert res["best_question"] is not None
+
+
+def test_above_threshold_falls_back_to_heuristic():
+    s = make_solver({"Y": {6, 7, 8, 9, 0, 1}})  # N=6 > default n_exact_max=5
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert 0.0 <= res["p_win"] <= 1.0
+    assert res["best_question"] is not None
+
+
+def test_node_budget_forces_fallback_even_under_threshold():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})  # N=4, normally exact
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2, node_budget=1)
+    assert res["exact"] is False
+
+
+def test_ranked_alternatives_sorted_descending_by_p_win():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    values = [res["best_question"]] + res["ranked_alternatives"]
+    p_wins = [res["p_win"]] + [alt["p_win"] for alt in res["ranked_alternatives"]]
+    assert p_wins == sorted(p_wins, reverse=True)
+
+
+def test_fallback_stays_fast_on_a_nearly_empty_board():
+    # Regression guard: an uncapped fallback measured ~28s here during
+    # brainstorming (0.38s x 74 candidate questions on a fresh board).
+    # fallback_cap must keep this well under interactive-use latency.
+    import time
+
+    s = DigitcodeSolver()
+    s.propagate(Clue())  # full domains, N far above n_exact_max -> fallback path
+    t0 = time.time()
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    elapsed = time.time() - t0
+    assert res["exact"] is False
+    assert elapsed < 5.0, f"fallback took {elapsed:.1f}s, expected well under 5s"
+
+
+def test_fallback_p_win_and_alternatives_stay_within_zero_one_on_saturated_board():
+    # Regression guard: the first "expected remaining candidates" attempt
+    # let multiple branches independently saturate fallback_cap, producing
+    # a weighted score above N (observed: 200% of N) once turned into a
+    # [0,1]-ish p_win. Must never happen regardless of board size.
+    s = DigitcodeSolver()
+    s.propagate(Clue())
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert 0.0 <= res["p_win"] <= 1.0
+    for alt in res["ranked_alternatives"]:
+        assert 0.0 <= alt["p_win"] <= 1.0
+
+
+def test_fallback_prefers_more_reachable_answers_when_saturated():
+    # Regression guard: under the same saturation bug, a 7-outcome column
+    # question could rank *below* a 2-outcome parity question (both hit the
+    # cap identically, so the buggy score couldn't tell them apart in the
+    # right direction). A column touches 2 positions (more reachable sums)
+    # and must never rank below a single-position parity question here.
+    s = DigitcodeSolver()
+    s.propagate(Clue())
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    labels = [res["best_question"]["label"]] + [a["label"] for a in res["ranked_alternatives"]]
+    first_col = min(i for i, l in enumerate(labels) if l.startswith("Combien en colonne"))
+    first_parity = min(i for i, l in enumerate(labels) if "pair/impair" in l)
+    assert first_col < first_parity
