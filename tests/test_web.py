@@ -199,6 +199,15 @@ def test_post_guess_failed_invalid_who_returns_400():
     assert r.status_code == 400
 
 
+def test_post_guess_failed_me_missing_candidate_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/guess-failed", json={"who": "me"})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+    assert "candidate" in r.get_json()["error"]
+
+
 def test_post_undo_restores_previous_clue():
     app = create_app()
     client = app.test_client()
