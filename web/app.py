@@ -2,8 +2,19 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, request
 
+from ..mapping import ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
 from ..solver import DigitcodeSolver, Clue
 from ..strategy import evaluate_race_strategy
+
+
+def _existing_comparison(comparisons, left, right):
+    """Return the stored tuple describing the current relation between
+    `left` and `right`, in either storage order, or None if unset."""
+    for entry in comparisons:
+        a, rel, b = entry
+        if (a, b) == (left, right) or (a, b) == (right, left):
+            return entry
+    return None
 
 
 def clone_clue(c: Clue) -> Clue:
@@ -60,6 +71,19 @@ def create_app() -> Flask:
             "parity": state["clue"].parity,
             "comparisons": state["clue"].comparisons,
             "segment_state": {f"{p}{s}": v for (p, s), v in state["clue"].segment_state.items()},
+            # Only for rows/cols not yet fixed -- lets the frontend show only
+            # the sums that are actually achievable given the current board,
+            # instead of a fixed 0-9 range that could be rejected server-side.
+            "reachable_row_sums": {
+                row: solver._reachable_sums(row_contributors(row))
+                for row in ROW_TOP + ROW_BOTTOM
+                if row not in state["clue"].row_totals
+            },
+            "reachable_col_sums": {
+                col: solver._reachable_sums(col_contributors(col))
+                for col in COLS
+                if col not in state["clue"].col_totals
+            },
         }
 
     @app.get("/api/state")
@@ -117,12 +141,16 @@ def create_app() -> Flask:
             else:
                 clue.parity[body["pos"]] = body["value"]
         elif t == "comparison":
-            pair = (body["left"], body["rel"], body["right"])
+            left, rel, right = body["left"], body["rel"], body["right"]
             if body.get("remove"):
+                pair = (left, rel, right)
                 if pair in clue.comparisons:
                     clue.comparisons.remove(pair)
             else:
-                clue.comparisons.append(pair)
+                existing = _existing_comparison(clue.comparisons, left, right)
+                if existing is not None:
+                    clue.comparisons.remove(existing)
+                clue.comparisons.append((left, rel, right))
         elif t == "segment":
             key = (body["pos"], body["seg"])
             if body.get("value") is None:

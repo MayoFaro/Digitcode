@@ -15,57 +15,18 @@
     <div id="domains" class="domains-grid"></div>
 
     <h2>Sommes ligne</h2>
-    <form id="row-form">
-      <select id="row-select">
-        <option>J</option><option>K</option><option>L</option><option>M</option><option>N</option>
-        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
-      </select>
-      <input id="row-value" type="number" min="0" placeholder="valeur (vide=supprimer)">
-      <button type="submit">Appliquer</button>
-    </form>
+    <div class="chip-row" id="row-letters"></div>
+    <div class="chip-row chip-row-values" id="row-values"></div>
 
     <h2>Sommes colonne</h2>
-    <form id="col-form">
-      <select id="col-select">
-        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
-        <option>F</option><option>G</option><option>H</option><option>I</option>
-      </select>
-      <input id="col-value" type="number" min="0" placeholder="valeur (vide=supprimer)">
-      <button type="submit">Appliquer</button>
-    </form>
+    <div class="chip-row" id="col-letters"></div>
+    <div class="chip-row chip-row-values" id="col-values"></div>
 
-    <h2>Parité</h2>
-    <form id="parity-form">
-      <select id="parity-pos">
-        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option>
-      </select>
-      <select id="parity-value">
-        <option value="">(supprimer)</option>
-        <option value="Pair">Pair</option>
-        <option value="Impair">Impair</option>
-      </select>
-      <button type="submit">Appliquer</button>
-    </form>
+    <h2>Comparaisons</h2>
+    <div class="cmp-grid" id="cmp-grid"></div>
 
-    <h2>Comparaison</h2>
-    <form id="cmp-form">
-      <select id="cmp-left"><option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
-      <select id="cmp-rel"><option>&gt;</option><option>&lt;</option></select>
-      <select id="cmp-right"><option>U</option><option>T</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
-      <button type="submit">Appliquer</button>
-    </form>
-
-    <h2>Segment</h2>
-    <form id="seg-form">
-      <select id="seg-pos"><option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
-      <select id="seg-seg"><option>a</option><option>b</option><option>c</option><option>d</option><option>e</option><option>f</option><option>g</option></select>
-      <select id="seg-value">
-        <option value="">(supprimer)</option>
-        <option value="on">on</option>
-        <option value="off">off</option>
-      </select>
-      <button type="submit">Appliquer</button>
-    </form>
+    <h2>Parité &amp; segments</h2>
+    <div id="pos-rows"></div>
 
     <h2>Historique</h2>
     <pre id="trace" class="trace-box"></pre>
