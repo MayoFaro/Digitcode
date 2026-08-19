@@ -278,3 +278,55 @@ def test_static_assets_are_served():
     client = app.test_client()
     assert client.get("/app.js").status_code == 200
     assert client.get("/style.css").status_code == 200
+
+
+def test_get_state_includes_reachable_row_and_col_sums_for_unset_lines():
+    app = create_app()
+    client = app.test_client()
+    r = client.get("/api/state")
+    body = r.get_json()
+    assert set(body["reachable_row_sums"].keys()) == set("JKLMNOPQRS")
+    assert set(body["reachable_col_sums"].keys()) == set("ABCDEFGHI")
+    # On a fresh board every row/col has at least one reachable sum.
+    assert all(len(v) >= 1 for v in body["reachable_row_sums"].values())
+    assert all(len(v) >= 1 for v in body["reachable_col_sums"].values())
+
+
+def test_get_state_reachable_sums_excludes_already_set_lines():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    client.post("/api/clue", json={"type": "col_total", "col": "A", "value": 2})
+    r = client.get("/api/state")
+    body = r.get_json()
+    assert "J" not in body["reachable_row_sums"]
+    assert "A" not in body["reachable_col_sums"]
+    assert "K" in body["reachable_row_sums"]
+    assert "B" in body["reachable_col_sums"]
+
+
+def test_post_clue_comparison_replaces_existing_opposite_relation_same_order():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": ">", "right": "U"})
+    r = client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": "<", "right": "U"})
+    comparisons = r.get_json()["comparisons"]
+    assert ["T", ">", "U"] not in comparisons
+    assert ["T", "<", "U"] in comparisons
+    assert len(comparisons) == 1
+
+
+def test_post_clue_comparison_replaces_existing_relation_reversed_order():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "comparison", "left": "T", "rel": ">", "right": "U"})
+    # Submitting U<T is a different literal request but the same logical
+    # claim as T>U already on file -- must not create a duplicate entry.
+    r = client.post("/api/clue", json={"type": "comparison", "left": "U", "rel": "<", "right": "T"})
+    comparisons = r.get_json()["comparisons"]
+    assert len(comparisons) == 1
+    # Submitting the logically opposite claim (U>T, i.e. T<U) must replace it.
+    r = client.post("/api/clue", json={"type": "comparison", "left": "U", "rel": ">", "right": "T"})
+    comparisons = r.get_json()["comparisons"]
+    assert len(comparisons) == 1
+    assert ["T", ">", "U"] not in comparisons and ["U", ">", "T"] in comparisons
