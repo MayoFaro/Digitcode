@@ -14,7 +14,7 @@ dependencies = [
 dev = ["pytest>=8.0"]
 
 [tool.setuptools]
-packages = ["digitcode"]
+packages = ["digitcode", "digitcode.web"]
 package-dir = {"digitcode" = "."}
 
 [tool.pytest.ini_options]
