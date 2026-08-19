@@ -79,13 +79,12 @@ exacte de son côté impossible de toute façon.
 
 ### Récursion
 
-À un nœud "moi" : je choisis, parmi les questions légales (types déjà
-existants : ligne, colonne, parité, comparaison, segment — cf.
-`enumerate_all_questions`), celle qui **maximise** `f`. Pour chaque question,
-pour chaque réponse possible pondérée par sa probabilité (`n_réponse/N`,
-logique déjà présente dans `_ev_immediate_for_question`), je choisis ensuite
-le meilleur de : deviner maintenant (si `a_me > 0`) vs. ne pas deviner et
-laisser passer le tour.
+À un nœud "moi" : je choisis, parmi les questions légales et **informatives**
+(au moins 2 issues possibles — une question à une seule issue ne change rien
+et est écartée d'emblée, cf. validation ci-dessous), celle qui **maximise**
+`f`. Pour chaque question, pour chaque réponse possible pondérée par sa
+probabilité (`n_réponse/N`), je choisis ensuite le meilleur de : deviner
+maintenant (si `a_me > 0`) vs. ne pas deviner et laisser passer le tour.
 
 À un nœud "adversaire" : structure symétrique, mais il choisit la question
 qui **minimise** ma valeur (somme nulle).
@@ -97,9 +96,86 @@ essai disponible. Cas dégénéré documenté (non traité spécialement) :
 
 **Mémoïsation** : clé = (signature figée de `clue` — tuples/frozensets des
 totaux/parités/comparaisons/états de segment — , `a_me`, `a_opp`,
-`frozenset(mes_exclusions)`, `au_tour_de`). La taille du domaine est déjà
-démontrée tractable par l'énumération DFS existante (`enumerate_solutions`) ;
-la mémoïsation évite les recalculs sur états déjà visités dans l'arbre.
+`frozenset(mes_exclusions)`, `au_tour_de`).
+
+### Validation de faisabilité (prototypé et testé pendant le brainstorming)
+
+Un prototype de cette récursion a été implémenté et testé sur des états
+construits à la main, avec les domaines fixés directement (sans passer par
+de vrais indices) :
+
+- Justesse vérifiée manuellement : N=1 → p_win=1.0 ; N=4 (deux positions
+  libres à 2 valeurs chacune) → p_win=0.5, résultat qui correspond
+  exactement au calcul refait à la main (question informative → deviner
+  immédiatement avec 50% de chances, sinon l'adversaire gagne à coup sûr au
+  tour suivant).
+- **Élaguer les questions à une seule issue est indispensable** : sans ça,
+  la récursion explose combinatoirement sur les ~27 indices "finis mais
+  nombreux" (lignes/colonnes/parité/comparaisons) qui restent disponibles
+  sans faire progresser l'état. Avec l'élagage, N=1/2/4 se calculent en
+  moins d'une seconde.
+- **Le passage à l'échelle reste limité et dépend de la structure, pas
+  seulement de N** : une seule position avec 6 candidats prend ~22s dans le
+  pire cas ; six candidats répartis sur deux positions prennent ~0.02s (une
+  question segment résout plusieurs positions à la fois). Un simple seuil
+  sur N ne suffit donc pas à garantir un temps de réponse interactif dans
+  tous les cas.
+
+**Décision retenue** : le moteur exact n'est utilisé que sous une garde
+double :
+1. `N ≤ N_EXACT_MAX` (défaut **5**, configurable) avant même de lancer la
+   récursion ;
+2. un **budget de nœuds** (compteur d'appels à la fonction de valeur
+   récursive, défaut **20 000**, indépendant du temps réel donc
+   déterministe et testable) — si dépassé en cours de calcul, on abandonne
+   proprement et on bascule sur le repli.
+
+**Repli heuristique — révisé après relecture** : la première version de ce
+repli réutilisait `ev_metrics_for_question` (calcul à une passe, crédite
+uniquement les issues qui tombent à ≤2 solutions). Testé sur un plateau
+vide, ce critère donne une **EV de 0.0 pour les 74 questions candidates
+sans exception** — aucun pouvoir de discrimination, précisément dans le
+régime où le repli est censé servir. C'est un mismatch : cette métrique est
+pensée pour la fin de partie (où retomber à ≤2 est plausible), pas pour
+classer "quelle question réduit le plus l'espace des possibles" en début de
+partie.
+
+Le repli retenu maximise plutôt la **réduction espérée du nombre de
+solutions restantes** — `Σ (n_r/N) × n_r` à minimiser, le critère standard
+pour ce type de problème (analogue à un solveur Mastermind/20-questions).
+Sous hypothèse d'une distribution uniforme sur les solutions cohérentes
+(déjà supposée partout ailleurs via `p = n_r/N`), c'est le critère
+bayésien-optimal localement gourmand — pas de raison de préférer un critère
+"pire cas" puisque ce n'est pas un adversaire qui choisit la réponse, mais
+le code secret fixe.
+
+**Piège découvert en testant ce remplacement** : compter `n_r` par branche
+avec un même cap (`fallback_cap`) appliqué indépendamment à chaque branche
+casse le calcul dès que plusieurs branches saturent ce cap simultanément
+(cas fréquent sur un plateau quasi vide) — le total pondéré peut alors
+dépasser N (observé : 200% de N), et le classement s'inverse par rapport à
+l'intuition (une question à 7 issues, chacune plafonnée à 500, est notée
+pire qu'une question à 2 issues, chacune aussi plafonnée à 500, alors que 7
+issues est *a priori* plus informatif). Retenu : un **design à deux
+régimes**, avec `n = count_solutions_exact(clue, cap=fallback_cap)` :
+- **N saturé** (`n >= fallback_cap`, c.-à-d. le décompte par branche ne
+  serait pas fiable) : classer par **nombre d'issues atteignables**
+  (`len(q["outcomes"])`), déjà calculé sans DFS supplémentaire par
+  `enumerate_all_questions` — proxy grossier mais gratuit et non biaisé par
+  la saturation.
+- **N non saturé** (le compte par branche est exact, pas de plafonnement) :
+  classer par réduction espérée, calcul exact et bien discriminant (validé
+  sur un état à N=32 : meilleure question à 28% de N restant en espérance,
+  pire à 62%).
+
+Le champ `p_win` retourné en mode repli n'est plus une vraie probabilité
+calibrée mais une **proportion de réduction** (`1 - score normalisé`,
+toujours dans [0,1]), cohérente pour le classement mais à ne pas lire comme
+une probabilité de victoire exacte — cohérent avec le marqueur
+`"exact": False` déjà prévu pour l'affichage.
+
+Le résultat de `evaluate_race_strategy` indique toujours si le calcul était
+exact (`"exact": True/False`) pour que l'interface puisse l'afficher.
 
 ### API exposée par `strategy.py`
 
@@ -111,10 +187,14 @@ def evaluate_race_strategy(
     clue: Clue,
     a_me: int,
     a_opp: int,
-    my_excluded: frozenset[tuple],
+    my_excluded: frozenset[tuple] = frozenset(),
+    n_exact_max: int = 5,
+    node_budget: int = 20_000,
 ) -> dict:
     """Retourne :
-    - 'p_win': probabilité de victoire sous jeu optimal depuis cet état
+    - 'p_win': probabilité de victoire (exacte ou estimée selon 'exact')
+    - 'exact': bool, True si le calcul est le résultat de la récursion
+      complète, False si c'est le repli heuristique qui a été utilisé
     - 'best_question': la question recommandée (label + qtype)
     - 'guess_now': bool, si deviner immédiatement bat l'attente
     - 'ranked_alternatives': liste des autres questions classées par p_win
