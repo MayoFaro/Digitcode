@@ -34,13 +34,26 @@ def create_app() -> Flask:
         solver.propagate(state["clue"])  # may raise ValueError; callers must catch it
         snap = solver.snapshot()
         sols = solver.enumerate_solutions(state["clue"], limit=5)
-        race = evaluate_race_strategy(solver, state["clue"], state["a_me"], state["a_opp"], state["my_excluded"])
+        # Shorter deadline than strategy.py's CLI-tuned default (3.0s): a web
+        # request must not stall for seconds on the exact engine before falling
+        # back. Passed explicitly here rather than changing the library default.
+        race = evaluate_race_strategy(
+            solver,
+            state["clue"],
+            state["a_me"],
+            state["a_opp"],
+            state["my_excluded"],
+            time_budget_s=1.5,
+        )
         return {
             "domains": snap,
             "solutions": [solver.solution_to_string(s) for s in sols],
             "trace": solver.trace,
             "a_me": state["a_me"],
             "a_opp": state["a_opp"],
+            # Same "TUV WXY" shape as solution_to_string, so the frontend can
+            # compare these against entries of "solutions" directly.
+            "my_excluded": [f"{c[0]}{c[1]}{c[2]} {c[3]}{c[4]}{c[5]}" for c in state["my_excluded"]],
             "race": race,
             "row_totals": state["clue"].row_totals,
             "col_totals": state["clue"].col_totals,
@@ -76,18 +89,28 @@ def create_app() -> Flask:
         if missing:
             return jsonify({"error": f"missing required field(s) for {t}: {', '.join(missing)}"}), 400
 
+        # Validate the numeric payload BEFORE touching history: a non-numeric
+        # value must be rejected without pushing an undo entry, otherwise the
+        # undo stack silently desyncs by one step.
+        total_value = None
+        if t in ("row_total", "col_total") and body.get("value") is not None:
+            try:
+                total_value = int(body["value"])
+            except (TypeError, ValueError):
+                return jsonify({"error": f"value for {t} must be an integer, got: {body['value']!r}"}), 400
+
         state["history"].append(clone_clue(state["clue"]))
         clue = state["clue"]
         if t == "row_total":
             if body.get("value") is None:
                 clue.row_totals.pop(body["row"], None)
             else:
-                clue.row_totals[body["row"]] = int(body["value"])
+                clue.row_totals[body["row"]] = total_value
         elif t == "col_total":
             if body.get("value") is None:
                 clue.col_totals.pop(body["col"], None)
             else:
-                clue.col_totals[body["col"]] = int(body["value"])
+                clue.col_totals[body["col"]] = total_value
         elif t == "parity":
             if body.get("value") is None:
                 clue.parity.pop(body["pos"], None)

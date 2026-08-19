@@ -155,6 +155,42 @@ def test_post_clue_missing_field_does_not_leave_orphaned_history_entry():
     assert r.get_json()["row_totals"]["J"] == 3
 
 
+def test_post_clue_row_total_non_numeric_value_returns_400_without_orphaning_history():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "row_total", "row": "J", "value": "abc"})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+    # the rejected request must not have written a partial entry ...
+    assert client.get("/api/state").get_json()["row_totals"] == {}
+    # ... nor pushed an undo entry: the next undo must be a no-op, so the
+    # following real clue survives it being applied then undone once.
+    r = client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    assert r.status_code == 200
+    assert r.get_json()["row_totals"]["J"] == 3
+    r = client.post("/api/undo")
+    assert r.get_json()["row_totals"] == {}
+    r = client.post("/api/undo")
+    assert r.get_json()["row_totals"] == {}
+
+
+def test_post_clue_col_total_non_numeric_value_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/clue", json={"type": "col_total", "col": "A", "value": "abc"})
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+    assert client.get("/api/state").get_json()["col_totals"] == {}
+
+
+def test_get_state_includes_my_excluded():
+    app = create_app()
+    client = app.test_client()
+    assert client.get("/api/state").get_json()["my_excluded"] == []
+    client.post("/api/guess-failed", json={"who": "me", "candidate": [0, 1, 2, 3, 4, 5]})
+    assert client.get("/api/state").get_json()["my_excluded"] == ["012 345"]
+
+
 def test_post_clue_contradiction_rolls_back_and_returns_400():
     app = create_app()
     client = app.test_client()
