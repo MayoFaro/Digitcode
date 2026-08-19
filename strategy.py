@@ -40,7 +40,7 @@ def _best_guess_value(
     lose_recurse: Callable[[FrozenSet[Candidate]], float],
 ) -> Optional[float]:
     """Value of attempting a guess now instead of waiting. None if no
-    attempt is available."""
+    attempt is available or if no candidates remain after exclusion."""
     if attempts <= 0:
         return None
     candidates = [_solution_tuple(s) for s in solver.enumerate_solutions(clue, limit=n_total + 1)]

@@ -82,3 +82,18 @@ def test_best_guess_value_excludes_already_tried_candidates():
     )
     # only one candidate left after exclusion -> certain win
     assert result == 1.0
+
+
+def test_best_guess_value_all_candidates_excluded_returns_none():
+    s = DigitcodeSolver()
+    s.domains = {"T": {0}, "U": {1}, "V": {2}, "W": {3}, "X": {4}, "Y": {5, 6}}
+    clue = Clue()
+    sols = s.enumerate_solutions(clue, limit=2)
+    # exclude both remaining candidates
+    already_tried = frozenset({_solution_tuple(sols[0]), _solution_tuple(sols[1])})
+    result = _best_guess_value(
+        s, clue, n_total=2, attempts=1, excluded=already_tried, win_value=1.0,
+        lose_recurse=lambda ne: 0.0,
+    )
+    # no candidates remain -> return None
+    assert result is None
