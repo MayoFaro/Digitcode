@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, FrozenSet, Optional, Tuple
 
 from .solver import DigitcodeSolver, Clue
 
@@ -28,3 +28,30 @@ def _solver_for(base: DigitcodeSolver, clue: Clue) -> Optional[DigitcodeSolver]:
     except ValueError:
         return None
     return child
+
+
+def _best_guess_value(
+    solver: DigitcodeSolver,
+    clue: Clue,
+    n_total: int,
+    attempts: int,
+    excluded: FrozenSet[Candidate],
+    win_value: float,
+    lose_recurse: Callable[[FrozenSet[Candidate]], float],
+) -> Optional[float]:
+    """Value of attempting a guess now instead of waiting. None if no
+    attempt is available."""
+    if attempts <= 0:
+        return None
+    candidates = [_solution_tuple(s) for s in solver.enumerate_solutions(clue, limit=n_total + 1)]
+    remaining = [c for c in candidates if c not in excluded]
+    n_remaining = len(remaining)
+    if n_remaining == 0:
+        return None
+    p_hit = 1.0 / n_remaining
+    p_miss = 1.0 - p_hit
+    if p_miss == 0.0:
+        return win_value
+    # Which specific remaining candidate is tried doesn't matter by symmetry.
+    new_excluded = excluded | {remaining[0]}
+    return p_hit * win_value + p_miss * lose_recurse(new_excluded)
