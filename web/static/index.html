@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Digitcode</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<h1>Digitcode</h1>
+<div id="error-banner" class="error-banner"></div>
+
+<div class="layout">
+  <div class="left">
+    <h2>Chiffres</h2>
+    <div id="domains" class="domains-grid"></div>
+
+    <h2>Sommes ligne</h2>
+    <form id="row-form">
+      <select id="row-select">
+        <option>J</option><option>K</option><option>L</option><option>M</option><option>N</option>
+        <option>O</option><option>P</option><option>Q</option><option>R</option><option>S</option>
+      </select>
+      <input id="row-value" type="number" min="0" placeholder="valeur (vide=supprimer)">
+      <button type="submit">Appliquer</button>
+    </form>
+
+    <h2>Sommes colonne</h2>
+    <form id="col-form">
+      <select id="col-select">
+        <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+        <option>F</option><option>G</option><option>H</option><option>I</option>
+      </select>
+      <input id="col-value" type="number" min="0" placeholder="valeur (vide=supprimer)">
+      <button type="submit">Appliquer</button>
+    </form>
+
+    <h2>Parité</h2>
+    <form id="parity-form">
+      <select id="parity-pos">
+        <option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option>
+      </select>
+      <select id="parity-value">
+        <option value="">(supprimer)</option>
+        <option value="Pair">Pair</option>
+        <option value="Impair">Impair</option>
+      </select>
+      <button type="submit">Appliquer</button>
+    </form>
+
+    <h2>Comparaison</h2>
+    <form id="cmp-form">
+      <select id="cmp-left"><option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
+      <select id="cmp-rel"><option>&gt;</option><option>&lt;</option></select>
+      <select id="cmp-right"><option>U</option><option>T</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
+      <button type="submit">Appliquer</button>
+    </form>
+
+    <h2>Segment</h2>
+    <form id="seg-form">
+      <select id="seg-pos"><option>T</option><option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option></select>
+      <select id="seg-seg"><option>a</option><option>b</option><option>c</option><option>d</option><option>e</option><option>f</option><option>g</option></select>
+      <select id="seg-value">
+        <option value="">(supprimer)</option>
+        <option value="on">on</option>
+        <option value="off">off</option>
+      </select>
+      <button type="submit">Appliquer</button>
+    </form>
+
+    <h2>Historique</h2>
+    <pre id="trace" class="trace-box"></pre>
+
+    <button id="undo-btn">Annuler (undo)</button>
+    <button id="reset-btn">Réinitialiser</button>
+  </div>
+
+  <div class="right">
+    <div class="solutions-box">
+      <strong>Solutions possibles :</strong> <span id="n-solutions"></span>
+      <div id="solutions-list" class="solutions-list"></div>
+    </div>
+
+    <div class="recommendation-box">
+      <h2>🎯 Recommandation</h2>
+      <div>P(je gagne) = <strong id="p-win"></strong> <span id="exact-tag" class="exact-tag"></span></div>
+      <div>Meilleure question : <strong id="best-question"></strong></div>
+      <div id="guess-now" class="guess-now"></div>
+      <h3>Alternatives</h3>
+      <ul id="alternatives"></ul>
+    </div>
+
+    <div class="attempts-box">
+      <h2>Essais</h2>
+      <div>Moi : <strong id="a-me"></strong>/2</div>
+      <div>Adversaire : <strong id="a-opp"></strong>/2 <button id="opp-miss-btn">il a raté</button></div>
+      <div>
+        <select id="my-miss-select"></select>
+        <button id="my-miss-btn">j'ai tenté celle-ci, raté</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

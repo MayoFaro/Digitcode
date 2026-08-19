@@ -227,3 +227,18 @@ def test_post_reset_clears_everything():
     assert body["row_totals"] == {}
     assert body["a_me"] == 2
     assert body["a_opp"] == 2
+
+
+def test_index_serves_the_frontend_page():
+    app = create_app()
+    client = app.test_client()
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b"Digitcode" in r.data
+
+
+def test_static_assets_are_served():
+    app = create_app()
+    client = app.test_client()
+    assert client.get("/app.js").status_code == 200
+    assert client.get("/style.css").status_code == 200

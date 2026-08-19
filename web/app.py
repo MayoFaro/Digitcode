@@ -146,4 +146,8 @@ def create_app() -> Flask:
         state["my_excluded"] = frozenset()
         return jsonify(current_state_payload())
 
+    @app.get("/")
+    def index():
+        return app.send_static_file("index.html")
+
     return app
