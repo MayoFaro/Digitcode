@@ -145,7 +145,6 @@ def test_node_budget_forces_fallback_even_under_threshold():
 def test_ranked_alternatives_sorted_descending_by_p_win():
     s = make_solver({"X": {6, 7}, "Y": {8, 9}})
     res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
-    values = [res["best_question"]] + res["ranked_alternatives"]
     p_wins = [res["p_win"]] + [alt["p_win"] for alt in res["ranked_alternatives"]]
     assert p_wins == sorted(p_wins, reverse=True)
 
@@ -192,3 +191,152 @@ def test_fallback_prefers_more_reachable_answers_when_saturated():
     first_col = min(i for i, l in enumerate(labels) if l.startswith("Combien en colonne"))
     first_parity = min(i for i, l in enumerate(labels) if "pair/impair" in l)
     assert first_col < first_parity
+
+
+# --- p_win must always be a probability -------------------------------------
+#
+# Root cause these guard: summing count_solutions_exact() over a question's
+# answer branches does NOT reproduce the parent's own count. solver.py's
+# apply_no_equal_adjacent / apply_max_two only prune domains with len() > 1,
+# so a violation between two positions already pinned to singletons by
+# independent constraints goes uncaught -- and whether that happens depends on
+# the order positions get fixed, which differs between parent and child
+# enumerations. Weights must therefore be normalized per question, by that
+# question's own branch-count sum, never by the parent count.
+
+import pytest
+
+
+def assert_probabilities(res, context: str) -> None:
+    assert 0.0 <= res["p_win"] <= 1.0, f"{context}: p_win={res['p_win']!r}"
+    for alt in res["ranked_alternatives"]:
+        assert 0.0 <= alt["p_win"] <= 1.0, f"{context}: {alt['label']} p_win={alt['p_win']!r}"
+
+
+def reported_cli_state():
+    """The exact state from the final-review bug report, reached in the CLI
+    with `L0, Q0, F0, I9, H5, U pair, V pair, W pair, X impair`. Its parent
+    count is 4 while one question's branches count 1+4+1=6, so dividing by the
+    parent count gave weights summing above 1 (reported P(je gagne)=103.12%)."""
+    clue = Clue()
+    clue.row_totals["L"] = 0
+    clue.row_totals["Q"] = 0
+    clue.col_totals["F"] = 0
+    clue.col_totals["I"] = 9
+    clue.col_totals["H"] = 5
+    clue.parity["U"] = "Pair"
+    clue.parity["V"] = "Pair"
+    clue.parity["W"] = "Pair"
+    clue.parity["X"] = "Impair"
+    s = DigitcodeSolver()
+    s.propagate(clue)
+    return s, clue
+
+
+def test_exact_path_p_win_within_zero_one_on_reported_cli_state():
+    s, clue = reported_cli_state()
+    res = evaluate_race_strategy(s, clue, a_me=2, a_opp=2)
+    assert res["exact"] is True  # this state must exercise the exact path
+    assert_probabilities(res, "reported CLI state")
+
+
+@pytest.mark.parametrize("a_me,a_opp", [(2, 2), (1, 2), (2, 1), (1, 1)])
+def test_exact_path_p_win_within_zero_one_across_attempt_counts(a_me, a_opp):
+    s, clue = reported_cli_state()
+    res = evaluate_race_strategy(s, clue, a_me=a_me, a_opp=a_opp)
+    assert_probabilities(res, f"reported CLI state a_me={a_me} a_opp={a_opp}")
+
+
+@pytest.mark.parametrize("free,expect_exact", [
+    ({"Y": {7, 8}}, True),
+    ({"Y": {3, 5, 7}}, True),
+    ({"X": {6, 7}, "Y": {8, 9}}, True),
+    # N=5 costs ~23s to solve exactly, so the default time budget makes it
+    # fall back -- the invariant must hold on either path.
+    ({"Y": {1, 3, 5, 7, 9}}, False),
+])
+def test_exact_path_p_win_within_zero_one_over_constructed_states(free, expect_exact):
+    # Property-style sweep: the mismatch is state-dependent, so cover several
+    # small boards rather than relying on one.
+    s = make_solver(free)
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is expect_exact
+    assert_probabilities(res, f"{free} (exact={res['exact']})")
+
+
+def non_saturated_fallback_state():
+    """A moderately-constrained board with N=138: above n_exact_max (so the
+    fallback runs) but far below fallback_cap (so it takes the *non-saturated*
+    branch, which the saturated-path guard above does not cover). Found by a
+    randomized sweep; one of its questions has branch counts 96+138+138+96=468
+    against a parent count of 138, which made the old `n`-normalized score
+    2.97 and hence p_win = -1.97 for that alternative."""
+    clue = Clue()
+    clue.parity["T"] = "Impair"
+    clue.parity["U"] = "Impair"
+    clue.row_totals["K"] = 1
+    clue.row_totals["P"] = 3
+    clue.row_totals["Q"] = 0
+    clue.col_totals["A"] = 2
+    clue.col_totals["I"] = 0
+    s = DigitcodeSolver()
+    s.propagate(clue)
+    return s, clue
+
+
+def test_fallback_non_saturated_p_win_and_alternatives_stay_within_zero_one():
+    s, clue = non_saturated_fallback_state()
+    n = s.count_solutions_exact(clue, cap=500)
+    assert 5 < n < 500, f"state must land in the non-saturated fallback branch, got N={n}"
+    res = evaluate_race_strategy(s, clue, a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert_probabilities(res, "non-saturated fallback")
+
+
+def test_fallback_non_saturated_on_a_small_constructed_board():
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})  # N=9: fallback, unsaturated
+    n = s.count_solutions_exact(Clue(), cap=500)
+    assert 5 < n < 500
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert_probabilities(res, "non-saturated fallback (constructed)")
+
+
+def test_heuristic_fallback_with_zero_solutions_does_not_divide_by_zero():
+    from digitcode.strategy import _heuristic_fallback
+
+    s = DigitcodeSolver()
+    s.domains = {k: {5} for k in ["T", "U", "V", "W", "X", "Y"]}
+    clue = Clue()
+    clue.parity["T"] = "Pair"  # unsatisfiable against the pinned odd domain
+    assert s.count_solutions_exact(clue, cap=500) == 0
+    # A non-empty question list is required to get past the `if not questions`
+    # early return; the n == 0 guard must fire before anything is read from it.
+    fake_questions = [{"qtype": "row", "label": "?", "outcomes": [{"answer": "0"}, {"answer": "1"}]}]
+    res = _heuristic_fallback(s, clue, fake_questions, n_gate=0, a_me=2, fallback_cap=500)
+    assert res["exact"] is False
+    assert res["best_question"] is None
+    assert 0.0 <= res["p_win"] <= 1.0
+
+
+def test_time_budget_forces_fallback_even_under_threshold():
+    # Companion to the node_budget guard: an already-expired wall-clock
+    # deadline must trigger the same fallback path.
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})  # N=4, normally exact
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2, time_budget_s=-1.0)
+    assert res["exact"] is False
+
+
+def test_exact_path_stays_within_the_default_time_budget():
+    # Regression guard for interactive latency: node_budget alone did not
+    # bound wall-clock time (each node costs an uncapped DFS count plus a full
+    # question enumeration). This N=5 board measured ~23s before the node
+    # budget ever tripped; show_race now runs after every CLI input line.
+    import time
+
+    s = make_solver({"Y": {1, 3, 5, 7, 9}})
+    t0 = time.monotonic()
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 10.0, f"took {elapsed:.1f}s despite the 3s default budget"
+    assert_probabilities(res, "default time budget")
