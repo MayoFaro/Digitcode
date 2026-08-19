@@ -56,7 +56,48 @@ def create_app() -> Flask:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
-    app.config["_digitcode_state"] = state
-    app.config["_digitcode_current_state_payload"] = current_state_payload
-    app.config["_digitcode_clone_clue"] = clone_clue
+    @app.post("/api/clue")
+    def post_clue():
+        body = request.get_json(force=True)
+        state["history"].append(clone_clue(state["clue"]))
+        clue = state["clue"]
+        t = body.get("type")
+        if t == "row_total":
+            if body.get("value") is None:
+                clue.row_totals.pop(body["row"], None)
+            else:
+                clue.row_totals[body["row"]] = int(body["value"])
+        elif t == "col_total":
+            if body.get("value") is None:
+                clue.col_totals.pop(body["col"], None)
+            else:
+                clue.col_totals[body["col"]] = int(body["value"])
+        elif t == "parity":
+            if body.get("value") is None:
+                clue.parity.pop(body["pos"], None)
+            else:
+                clue.parity[body["pos"]] = body["value"]
+        elif t == "comparison":
+            pair = (body["left"], body["rel"], body["right"])
+            if body.get("remove"):
+                if pair in clue.comparisons:
+                    clue.comparisons.remove(pair)
+            else:
+                clue.comparisons.append(pair)
+        elif t == "segment":
+            key = (body["pos"], body["seg"])
+            if body.get("value") is None:
+                clue.segment_state.pop(key, None)
+            else:
+                clue.segment_state[key] = bool(body["value"])
+        else:
+            state["history"].pop()
+            return jsonify({"error": f"unknown clue type: {t}"}), 400
+
+        try:
+            return jsonify(current_state_payload())
+        except ValueError as e:
+            state["clue"] = state["history"].pop()
+            return jsonify({"error": str(e)}), 400
+
     return app
