@@ -165,3 +165,56 @@ def test_post_clue_contradiction_rolls_back_and_returns_400():
     # state must have rolled back to the pre-contradiction (parity + b=off) state
     r2 = client.get("/api/state")
     assert r2.get_json()["domains"]["T"] == [6]
+
+
+def test_post_guess_failed_opponent_decrements_a_opp():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/guess-failed", json={"who": "opponent"})
+    assert r.status_code == 200
+    assert r.get_json()["a_opp"] == 1
+
+
+def test_post_guess_failed_opponent_floors_at_zero():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/guess-failed", json={"who": "opponent"})
+    client.post("/api/guess-failed", json={"who": "opponent"})
+    r = client.post("/api/guess-failed", json={"who": "opponent"})
+    assert r.get_json()["a_opp"] == 0
+
+
+def test_post_guess_failed_me_decrements_a_me_and_excludes_candidate():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/guess-failed", json={"who": "me", "candidate": [0, 1, 2, 3, 4, 5]})
+    assert r.status_code == 200
+    assert r.get_json()["a_me"] == 1
+
+
+def test_post_guess_failed_invalid_who_returns_400():
+    app = create_app()
+    client = app.test_client()
+    r = client.post("/api/guess-failed", json={"who": "nobody"})
+    assert r.status_code == 400
+
+
+def test_post_undo_restores_previous_clue():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    r = client.post("/api/undo")
+    assert r.status_code == 200
+    assert r.get_json()["row_totals"] == {}
+
+
+def test_post_reset_clears_everything():
+    app = create_app()
+    client = app.test_client()
+    client.post("/api/clue", json={"type": "row_total", "row": "J", "value": 3})
+    client.post("/api/guess-failed", json={"who": "opponent"})
+    r = client.post("/api/reset")
+    body = r.get_json()
+    assert body["row_totals"] == {}
+    assert body["a_me"] == 2
+    assert body["a_opp"] == 2

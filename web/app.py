@@ -113,4 +113,37 @@ def create_app() -> Flask:
             state["clue"] = state["history"].pop()
             return jsonify({"error": str(e)}), 400
 
+    @app.post("/api/guess-failed")
+    def post_guess_failed():
+        body = request.get_json(force=True)
+        who = body.get("who")
+        if who == "opponent":
+            if state["a_opp"] > 0:
+                state["a_opp"] -= 1
+        elif who == "me":
+            if "candidate" not in body:
+                return jsonify({"error": "candidate field required when who='me'"}), 400
+            if state["a_me"] > 0:
+                candidate = tuple(body["candidate"])
+                state["my_excluded"] = state["my_excluded"] | {candidate}
+                state["a_me"] -= 1
+        else:
+            return jsonify({"error": "who must be 'me' or 'opponent'"}), 400
+        return jsonify(current_state_payload())
+
+    @app.post("/api/undo")
+    def post_undo():
+        if state["history"]:
+            state["clue"] = state["history"].pop()
+        return jsonify(current_state_payload())
+
+    @app.post("/api/reset")
+    def post_reset():
+        state["clue"] = Clue()
+        state["history"] = []
+        state["a_me"] = 2
+        state["a_opp"] = 2
+        state["my_excluded"] = frozenset()
+        return jsonify(current_state_payload())
+
     return app
