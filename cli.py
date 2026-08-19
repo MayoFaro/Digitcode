@@ -1,8 +1,9 @@
 import re
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, List
 
 from digitcode.solver import DigitcodeSolver, Clue
 from digitcode.mapping import grid_to_segment
+from digitcode.strategy import evaluate_race_strategy, _solution_tuple
 
 HELP = """
 Entrées (séparées par virgules ou une par ligne) :
@@ -14,14 +15,15 @@ Entrées (séparées par virgules ou une par ligne) :
   Segments ON/OFF        :    TAM off, XBR on, TBR- (supprime)
 
 Commandes :
-  show   -> domaines + trace + résumé + alertes
-  hint   -> opportunités (issues à ≤2)   [hint all/rows/cols/50]
-  risk   -> alias de hint
-  force  -> zugzwang (pas de question safe pour l’adversaire) [force all/rows/cols/loose/20]
-  zug    -> alias de force
-  rank   -> classement EV (imm), P(plateau|mauvaise), EV profondeur [rank 20 cap=20000 rows/cols/parity/cmp/seg]
-  undo   -> annule la dernière modification
-  reset  -> remet tout à zéro
+  show     -> domaines + trace + résumé + alertes
+  hint     -> opportunités (issues à ≤2)   [hint all/rows/cols/50]
+  risk     -> alias de hint
+  race     -> stratégie de course exacte (P(gagner), meilleure question, deviner ou non)
+  opp-miss -> enregistre un échec de proposition de l'adversaire
+  my-miss  -> enregistre un de vos échecs de proposition (choix parmi les solutions affichées)
+  rank     -> classement EV (imm), P(plateau|mauvaise), EV profondeur [rank 20 cap=20000 rows/cols/parity/cmp/seg]
+  undo     -> annule la dernière modification
+  reset    -> remet tout à zéro
   help / quit
 """
 
@@ -51,7 +53,6 @@ def print_trace(s: DigitcodeSolver):
     for line in s.trace:
         print("•", line)
 
-def _sol_tuple(sol: Dict[str, int]): return (sol["T"],sol["U"],sol["V"],sol["W"],sol["X"],sol["Y"])
 def _is_swap_pair(a, b):
     diffs = [i for i in range(6) if a[i] != b[i]]
     return len(diffs)==2 and a[diffs[0]]==b[diffs[1]] and a[diffs[1]]==b[diffs[0]]
@@ -63,7 +64,7 @@ def print_solution_summary(s: DigitcodeSolver, clue: Clue) -> None:
     if len(sols)==1:
         print("✅ Solution unique :", s.solution_to_string(sols[0])); return
     if len(sols)<=4:
-        tuples = [_sol_tuple(sol) for sol in sols]
+        tuples = [_solution_tuple(sol) for sol in sols]
         labels = [s.solution_to_string(sol) for sol in sols]
         n = len(sols); used=set(); tokens=[]
         for i in range(n):
@@ -109,32 +110,25 @@ def print_risk_alert(s: DigitcodeSolver, clue: Clue, top: int = 6):
         print(f"   - {q['label']}{gar} [{issues}]")
     if len(qs) > top: print("   … 'hint' pour le détail.")
 
-def show_forcing(s: DigitcodeSolver, clue: Clue, top: Optional[int]=20, only_types: Optional[set]=None, strict: bool=True):
-    lst = s.evaluate_forcing_questions(clue, strict=strict)
-    if only_types: lst = [x for x in lst if x["qtype"] in only_types]
-    if not lst:
-        print("(aucune question ne met l’adversaire en zugzwang au prochain tour)")
-        return
-    if top is not None: lst = lst[:top]
-    mode = "STRICT" if strict else "LOOSE"
-    print(f"Questions qui METTENT l’adversaire en ZUGZWANG [{mode}] :")
-    for it in lst:
-        tag = " (garanti)" if it["guarantee"] else ""
-        fa  = ", ".join(it["forcing_answers"])
-        samples = "; ".join(it["samples"]) if it["samples"] else "—"
-        print(f"- {it['label']}{tag}  [couverture {it['coverage']}; réponses forçantes: {fa}]")
-        print(f"    ex. de questions à risque dispo pour lui : {samples}")
-
-def print_force_alert(s: DigitcodeSolver, clue: Clue, top:int=3):
-    lst = s.evaluate_forcing_questions(clue)
-    if not lst: return
-    print("🎯 À poser (met l’adversaire en zugzwang) :")
-    for it in lst[:top]:
-        tag = " (garanti)" if it["guarantee"] else ""
-        print(f"   - {it['label']}{tag}  [{it['coverage']}]")
-
 def _format_pct(x: float) -> str:
     return f"{round(100*x, 2):.2f}%"
+
+def show_race(s: DigitcodeSolver, clue: Clue, a_me: int, a_opp: int, my_excluded: frozenset) -> None:
+    res = evaluate_race_strategy(s, clue, a_me, a_opp, my_excluded)
+    tag = "exact" if res["exact"] else "estimation (N trop grand)"
+    # Hors du régime exact, le score n'est PAS une probabilité de victoire
+    # calibrée mais un indicateur de qualité de réduction : ne pas l'afficher
+    # comme un P(gagner).
+    score_label = "P(je gagne)" if res["exact"] else "Qualité de réduction"
+    print(f"🎲 Stratégie de course [{tag}] — essais: moi {a_me}/2, adversaire {a_opp}/2")
+    print(f"   {score_label} = {_format_pct(res['p_win'])}")
+    if res["guess_now"]:
+        print("   -> PROPOSER UNE SOLUTION MAINTENANT.")
+    if res["best_question"] is not None:
+        print(f"   Meilleure question : {res['best_question']['label']}")
+    alt_label = "P(gagner)" if res["exact"] else "réduction"
+    for alt in res["ranked_alternatives"][:5]:
+        print(f"     · {alt['label']} — {alt_label}={_format_pct(alt['p_win'])}")
 
 def show_rank(s: DigitcodeSolver, clue: Clue, top: int = 20, cap: int = None, only_types: Optional[set]=None):
     try:
@@ -268,8 +262,11 @@ def main():
     s = DigitcodeSolver()
     clue = Clue()
     history: List[Clue] = []
+    a_me = 2
+    a_opp = 2
+    my_excluded: frozenset = frozenset()
 
-    print("Digitcode CLI (risques + zugzwang). Tape 'help' pour l'aide.")
+    print("Digitcode CLI (risques + stratégie de course). Tape 'help' pour l'aide.")
     while True:
         try:
             line = input("> ").strip()
@@ -283,6 +280,7 @@ def main():
 
         if low == "reset":
             s = DigitcodeSolver(); clue = Clue(); history.clear()
+            a_me, a_opp, my_excluded = 2, 2, frozenset()
             print("Réinitialisé."); continue
 
         if low == "undo":
@@ -295,7 +293,7 @@ def main():
                     print("(undo) ", {k: snap[k] for k in ["T","U","V","W","X","Y"]})
                     print_solution_summary(s, clue)
                     print_risk_alert(s, clue)
-                    print_force_alert(s, clue)
+                    show_race(s, clue, a_me, a_opp, my_excluded)
                 except Exception as e:
                     print(f"Erreur: {e}")
             else:
@@ -318,22 +316,52 @@ def main():
                 print(f"Erreur: {e}")
             continue
 
-        if low.startswith("force") or low == "zug":
+        if low == "race":
             try:
                 s = DigitcodeSolver(); s.propagate(clue); print_trace(s)
-                only, top = None, 20
-                strict = True
-                parts = low.split()
-                if len(parts) >= 2:
-                    arg = parts[1]
-                    if arg == "all": top = None
-                    elif arg in ("rows","lignes"): only = {"row"}; top = None
-                    elif arg in ("cols","colonnes"): only = {"col"}; top = None
-                    elif arg == "loose": strict = False
-                    elif arg.isdigit(): top = int(arg)
-                show_forcing(s, clue, top=top, only_types=only, strict=strict)
+                show_race(s, clue, a_me, a_opp, my_excluded)
             except Exception as e:
                 print(f"Erreur: {e}")
+            continue
+
+        if low == "opp-miss":
+            if a_opp <= 0:
+                print("L'adversaire n'a plus d'essai.")
+            else:
+                a_opp -= 1
+                print(f"Échec adverse enregistré. Adversaire : {a_opp}/2 essai(s) restant(s).")
+            continue
+
+        if low == "my-miss":
+            if a_me <= 0:
+                print("Vous n'avez plus d'essai.")
+            else:
+                try:
+                    s = DigitcodeSolver(); s.propagate(clue)
+                    # limit=7 : on n'en affiche que 6, la 7e sert uniquement à
+                    # détecter (et signaler) qu'il en existe d'autres.
+                    sols = s.enumerate_solutions(clue, limit=7)
+                    truncated = len(sols) > 6
+                    sols = sols[:6]
+                    if not sols:
+                        print("Aucune solution candidate à exclure.")
+                    else:
+                        print("Quelle solution avez-vous tentée ?")
+                        for i, sol in enumerate(sols):
+                            print(f"  {i}: {s.solution_to_string(sol)}")
+                        if truncated:
+                            print("  (seules les 6 premières solutions sont affichées ; "
+                                  "si la vôtre n'y figure pas, précisez d'abord d'autres indices.)")
+                        idx_raw = input("  index > ").strip()
+                        if idx_raw.isdigit() and int(idx_raw) < len(sols):
+                            tried = _solution_tuple(sols[int(idx_raw)])
+                            my_excluded = my_excluded | {tried}
+                            a_me -= 1
+                            print(f"Échec enregistré pour {s.solution_to_string(sols[int(idx_raw)])}. Vous : {a_me}/2 essai(s) restant(s).")
+                        else:
+                            print("Index invalide, rien d'enregistré.")
+                except Exception as e:
+                    print(f"Erreur: {e}")
             continue
 
         if low.startswith("rank"):
@@ -364,7 +392,7 @@ def main():
                 print({k: snap[k] for k in ["T","U","V","W","X","Y"]})
                 print_solution_summary(s, clue)
                 print_risk_alert(s, clue)
-                print_force_alert(s, clue)
+                show_race(s, clue, a_me, a_opp, my_excluded)
             except Exception as e:
                 print(f"Erreur: {e}")
             continue
@@ -385,7 +413,7 @@ def main():
             print({k: snap[k] for k in ["T","U","V","W","X","Y"]})
             print_solution_summary(s, clue)
             print_risk_alert(s, clue)
-            print_force_alert(s, clue)
+            show_race(s, clue, a_me, a_opp, my_excluded)
         except Exception as e:
             print(f"Erreur: {e}")
 
