@@ -1,5 +1,5 @@
 from digitcode.solver import DigitcodeSolver, Clue
-from digitcode.strategy import _clue_signature, _solution_tuple, _solver_for, _best_guess_value
+from digitcode.strategy import _clue_signature, _solution_tuple, _solver_for, _best_guess_value, _question_branches
 
 
 def test_clue_signature_equal_for_equal_clues():
@@ -340,3 +340,44 @@ def test_exact_path_stays_within_the_default_time_budget():
     elapsed = time.monotonic() - t0
     assert elapsed < 10.0, f"took {elapsed:.1f}s despite the 3s default budget"
     assert_probabilities(res, "default time budget")
+
+
+def test_near_finish_true_when_a_branch_reaches_the_default_threshold():
+    # N=2: any informative question resolves to two 1-solution branches,
+    # i.e. immediately near-finish under the default threshold (3).
+    s = make_solver({"Y": {7, 8}})
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is True
+    assert res["best_question"]["near_finish"] is True
+
+
+def test_near_finish_threshold_is_configurable():
+    s = make_solver({"Y": {7, 8}})
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2, near_finish_threshold=0)
+    # a branch of size 1 never satisfies a threshold of 0 -- nothing qualifies.
+    assert res["best_question"]["near_finish"] is False
+    for alt in res["ranked_alternatives"]:
+        assert alt["near_finish"] is False
+
+
+def test_near_finish_matches_the_recommended_questions_own_branch_counts():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})  # N=4
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is True
+
+    all_questions = [q for q in s.enumerate_all_questions(Clue()) if len(q["outcomes"]) > 1]
+    for entry in [res["best_question"]] + res["ranked_alternatives"]:
+        matching_q = next(q for q in all_questions if q["label"] == entry["label"])
+        branches = _question_branches(s, Clue(), matching_q)
+        expected = any(n_ans <= 3 for _, _, n_ans in branches)
+        assert entry["near_finish"] == expected, entry["label"]
+
+
+def test_near_finish_always_false_in_the_fallback_regime():
+    s = DigitcodeSolver()
+    s.propagate(Clue())
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert res["best_question"]["near_finish"] is False
+    for alt in res["ranked_alternatives"]:
+        assert alt["near_finish"] is False

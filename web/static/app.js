@@ -379,7 +379,12 @@ function render(state) {
   document.getElementById("p-win-label").textContent = race.exact ? "P(je gagne)" : "Qualité de réduction";
   document.getElementById("p-win").textContent = (race.p_win * 100).toFixed(1) + "%";
   document.getElementById("exact-tag").textContent = race.exact ? "(exact)" : "(estimation)";
-  document.getElementById("best-question").textContent = race.best_question ? race.best_question.label : "(aucune)";
+  const bestQuestionEl = document.getElementById("best-question");
+  bestQuestionEl.textContent = race.best_question ? race.best_question.label : "(aucune)";
+  // near_finish: at least one reachable answer to this question would bring
+  // the solution count down to a handful -- flagged so the player notices a
+  // question that could effectively close the game out.
+  bestQuestionEl.classList.toggle("near-finish", !!(race.best_question && race.best_question.near_finish));
   const guessEl = document.getElementById("guess-now");
   guessEl.textContent = race.guess_now ? "OUI — proposez une solution !" : "Non, attendez.";
   guessEl.className = "guess-now " + (race.guess_now ? "guess-yes" : "guess-no");
@@ -390,6 +395,7 @@ function render(state) {
   for (const alt of race.ranked_alternatives.slice(0, MAX_ALTERNATIVES_SHOWN)) {
     const li = document.createElement("li");
     li.textContent = `${alt.label} — ${altLabel}=${(alt.p_win * 100).toFixed(1)}%`;
+    if (alt.near_finish) li.classList.add("near-finish");
     altEl.appendChild(li);
   }
 

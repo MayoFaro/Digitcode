@@ -11,6 +11,9 @@ body { font-family: sans-serif; max-width: 1100px; margin: 0 auto; padding: 1rem
 .guess-now { font-weight: bold; margin: 0.5rem 0; }
 .guess-yes { color: #060; }
 .guess-no { color: #666; }
+/* At least one reachable answer to this question would bring the solution
+   count down to the near-finish threshold or below. */
+.near-finish { color: #c00; font-weight: bold; }
 .attempts-box { background: #fff6ee; padding: 1rem; border-radius: 6px; }
 
 /* --- Chips --------------------------------------------------------------- */
@@ -71,7 +74,7 @@ body { font-family: sans-serif; max-width: 1100px; margin: 0 auto; padding: 1rem
 .pos-label { font-weight: bold; }
 .parity-chip { min-width: 1.6rem; }
 
-.digit-svg { width: 54px; height: 90px; }
+.digit-svg { width: 90px; height: 150px; }
 .seg-shape { stroke: #999; stroke-width: 1; cursor: pointer; }
 .seg-shape:hover { stroke: #333; stroke-width: 2; }
 .seg-shape-disabled { pointer-events: none; opacity: 0.6; }
