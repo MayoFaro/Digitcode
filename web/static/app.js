@@ -55,6 +55,22 @@ async function postClue(body) {
   }
 }
 
+// Tries each body in order, stopping at the first that doesn't come back as
+// a rejected contradiction. Used by the cycling chips (comparison, parity,
+// segment) so a single click always lands on a valid state instead of
+// getting stuck retrying the same rejected transition forever: if the next
+// state in the cycle happens to contradict the current board, we fall
+// through to the state after it (ultimately "remove the clue", which is a
+// plain deletion and can never itself be rejected).
+async function postClueWithFallback(bodies) {
+  let result = null;
+  for (const body of bodies) {
+    result = await postClue(body);
+    if (result === null || !result.error) return result;
+  }
+  return result;
+}
+
 async function postGuessFailed(body) {
   try {
     const res = await fetch(`${API}/guess-failed`, {
@@ -174,14 +190,24 @@ function renderComparisons(state) {
   const connectorNode = (left, right) => {
     const rel = currentRelation(state.comparisons, left, right);
     return makeChip(relationLabel(rel), { extraClass: "cmp-chip" }, () => {
-      if (rel === null) {
-        runMutation(() => postClue({ type: "comparison", left, rel: ">", right }));
-      } else if (rel === ">") {
-        runMutation(() => postClue({ type: "comparison", left, rel: "<", right }));
-      } else {
+      const removeAttempt = () => {
         const stored = findStoredComparison(state.comparisons, left, right);
-        runMutation(() => postClue({ type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true }));
+        return { type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true };
+      };
+      let attempts;
+      if (rel === null) {
+        // Try ">" first; if that's a contradiction given the current board,
+        // fall through to "<" instead of getting stuck.
+        attempts = [
+          { type: "comparison", left, rel: ">", right },
+          { type: "comparison", left, rel: "<", right },
+        ];
+      } else if (rel === ">") {
+        attempts = [{ type: "comparison", left, rel: "<", right }, removeAttempt()];
+      } else {
+        attempts = [removeAttempt()];
       }
+      runMutation(() => postClueWithFallback(attempts));
     });
   };
 
@@ -204,22 +230,10 @@ function renderComparisons(state) {
 
 // --- Parity + segment grid ----------------------------------------------------
 
-function nextParity(current) {
-  if (current === undefined || current === null) return "Pair";
-  if (current === "Pair") return "Impair";
-  return null;
-}
-
 function parityLabel(current) {
   if (current === "Pair") return "P";
   if (current === "Impair") return "I";
   return "?";
-}
-
-function nextSegmentValue(current) {
-  if (current === undefined) return true;
-  if (current === true) return false;
-  return null;
 }
 
 // Trapezoid outlines for each of the 7 segments, laid out on a 0..60 x 0..100
@@ -275,7 +289,20 @@ function buildDigitSvg(pos, segmentState) {
       "seg-shape " + (current === undefined ? "seg-shape-unknown" : current ? "seg-shape-on" : "seg-shape-off"),
     );
     poly.addEventListener("click", () => {
-      runMutation(() => postClue({ type: "segment", pos, seg, value: nextSegmentValue(current) }));
+      let attempts;
+      if (current === undefined) {
+        // Try "on" first; if that's a contradiction given the current
+        // board, fall through to "off" instead of getting stuck.
+        attempts = [
+          { type: "segment", pos, seg, value: true },
+          { type: "segment", pos, seg, value: false },
+        ];
+      } else if (current === true) {
+        attempts = [{ type: "segment", pos, seg, value: false }, { type: "segment", pos, seg, value: null }];
+      } else {
+        attempts = [{ type: "segment", pos, seg, value: null }];
+      }
+      runMutation(() => postClueWithFallback(attempts));
     });
     svg.appendChild(poly);
   }
@@ -301,7 +328,20 @@ function renderPositionGrid(state) {
 
     const parityValue = state.parity[pos];
     const parityChip = makeChip(parityLabel(parityValue), { extraClass: "parity-chip" }, () => {
-      runMutation(() => postClue({ type: "parity", pos, value: nextParity(parityValue) }));
+      let attempts;
+      if (parityValue === undefined || parityValue === null) {
+        // Try "Pair" first; if that's a contradiction given the current
+        // board, fall through to "Impair" instead of getting stuck.
+        attempts = [
+          { type: "parity", pos, value: "Pair" },
+          { type: "parity", pos, value: "Impair" },
+        ];
+      } else if (parityValue === "Pair") {
+        attempts = [{ type: "parity", pos, value: "Impair" }, { type: "parity", pos, value: null }];
+      } else {
+        attempts = [{ type: "parity", pos, value: null }];
+      }
+      runMutation(() => postClueWithFallback(attempts));
     });
     wrapper.appendChild(parityChip);
 
