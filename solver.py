@@ -1,4 +1,5 @@
 from __future__ import annotations
+import itertools
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Set, Optional
 
@@ -139,8 +140,18 @@ class DigitcodeSolver:
         glob_min = sum(min(vs) if vs else 0 for vs in pos_vals.values())
         glob_max = sum(max(vs) if vs else 0 for vs in pos_vals.values())
         if not (glob_min <= target <= glob_max):
-            self.log(f"[{label}] cible {target} impossible (min={glob_min}, max={glob_max}) — aucune réduction")
-            return False
+            # Genuinely unreachable, not merely "nothing to prune": returning
+            # False here would silently let propagate() converge as if this
+            # constraint had no effect, since the post-loop "domaine vide"
+            # check only fires when SOME domain is emptied. Empty every
+            # contributing position so that check catches it and the clue is
+            # correctly rejected as a contradiction.
+            self.log(f"[{label}] cible {target} impossible (min={glob_min}, max={glob_max}) — contradiction")
+            for p in by_pos:
+                if self.domains[p]:
+                    self.domains[p] = set()
+                    changed = True
+            return changed
 
         def reachable_sum_set(pos_list: List[Pos]) -> Set[int]:
             sums = {0}
@@ -578,6 +589,68 @@ class DigitcodeSolver:
         except Exception:
             return 0
         return child._dfs_count(child.domains, clue, cap=cap)
+
+    def count_solutions_capped(self, clue: Clue, cap: Optional[int] = None) -> int:
+        """Exact solution count via direct constraint-checking over the
+        (already-propagated) domains, without the per-node solver-object
+        creation and full re-propagation that makes `count_solutions_exact`
+        slow on large domains (~10x faster on an empty board).
+
+        Parity and segment_state are pure per-position domain filters with
+        no cross-position interaction, so `self.domains` already reflects
+        them exactly and they need no re-check here. Adjacency, max-two,
+        row/col totals and comparisons all constrain COMBINATIONS of
+        positions, and domain-narrowing alone does not guarantee every
+        surviving combination jointly satisfies them (see the confluence
+        note on strategy.py's `_clue_signature`), so those are re-checked
+        directly against each full candidate tuple.
+
+        With `cap` set, stops as soon as `cap` matches are found; the
+        returned count is then a lower bound, not the true total.
+        """
+        pos_idx = {p: i for i, p in enumerate(POSITIONS)}
+        doms = [sorted(self.domains[p]) for p in POSITIONS]
+        adj_idx = [(pos_idx[a], pos_idx[b]) for a, b in ADJACENT]
+        cmp_idx = [(pos_idx[l], rel, pos_idx[r]) for (l, rel, r) in clue.comparisons if rel in (">", "<")]
+        row_checks = [
+            ([(pos_idx[p], s) for p, s in row_contributors(row)], tgt)
+            for row, tgt in clue.row_totals.items() if tgt is not None
+        ]
+        col_checks = [
+            ([(pos_idx[p], s) for p, s in col_contributors(col)], tgt)
+            for col, tgt in clue.col_totals.items() if tgt is not None
+        ]
+
+        count = 0
+        for combo in itertools.product(*doms):
+            if any(combo[i] == combo[j] for i, j in adj_idx):
+                continue
+            occurrences: Dict[int, int] = {}
+            over_max = False
+            for v in combo:
+                c = occurrences.get(v, 0) + 1
+                if c > 2:
+                    over_max = True
+                    break
+                occurrences[v] = c
+            if over_max:
+                continue
+            if any((combo[i] <= combo[j]) if rel == ">" else (combo[i] >= combo[j]) for i, rel, j in cmp_idx):
+                continue
+            if any(
+                sum(1 for idx, seg in contribs if seg in DIGIT_TO_SEGS[combo[idx]]) != tgt
+                for contribs, tgt in row_checks
+            ):
+                continue
+            if any(
+                sum(1 for idx, seg in contribs if seg in DIGIT_TO_SEGS[combo[idx]]) != tgt
+                for contribs, tgt in col_checks
+            ):
+                continue
+            count += 1
+            if cap is not None and count >= cap:
+                return count
+        return count
 
     def _list_question_values(self, clue: Clue, q: dict) -> List[Tuple[str,int]]:
         res = []

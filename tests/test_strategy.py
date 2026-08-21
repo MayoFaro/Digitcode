@@ -214,19 +214,30 @@ def assert_probabilities(res, context: str) -> None:
 
 
 def reported_cli_state():
-    """The exact state from the final-review bug report, reached in the CLI
-    with `L0, Q0, F0, I9, H5, U pair, V pair, W pair, X impair`. Its parent
-    count is 4 while one question's branches count 1+4+1=6, so dividing by the
-    parent count gave weights summing above 1 (reported P(je gagne)=103.12%)."""
+    """A valid N=4 board exercising the same exact-regime normalization path
+    as the original final-review bug report (parent count 4 while a
+    question's branches summed to 6, so dividing by the parent count gave
+    weights above 1 and P(je gagne)=103.12%).
+
+    The ORIGINAL reported clue (`L0, Q0, F0, I9, H5, U pair, V pair, W pair,
+    X impair`) turned out to itself be contradictory -- solver.py's
+    `apply_total` used to return silently when a row/col total was
+    unreachable given current domains instead of emptying a domain, so
+    propagate() never raised and the state was accepted with an N that
+    didn't correspond to any real solution. That gap is fixed (apply_total
+    now empties the contributing domains on an unreachable target), and
+    propagate() correctly rejects the original clue as a contradiction.
+    This replacement clue is a genuinely valid N=4 state, found by random
+    search, used to keep covering the same code path."""
     clue = Clue()
-    clue.row_totals["L"] = 0
-    clue.row_totals["Q"] = 0
-    clue.col_totals["F"] = 0
-    clue.col_totals["I"] = 9
-    clue.col_totals["H"] = 5
-    clue.parity["U"] = "Pair"
-    clue.parity["V"] = "Pair"
+    clue.row_totals["K"] = 6
+    clue.row_totals["S"] = 1
+    clue.col_totals["H"] = 3
+    clue.col_totals["C"] = 3
+    clue.col_totals["E"] = 1
+    clue.parity["T"] = "Pair"
     clue.parity["W"] = "Pair"
+    clue.parity["Y"] = "Pair"
     clue.parity["X"] = "Impair"
     s = DigitcodeSolver()
     s.propagate(clue)
@@ -265,20 +276,25 @@ def test_exact_path_p_win_within_zero_one_over_constructed_states(free, expect_e
 
 
 def non_saturated_fallback_state():
-    """A moderately-constrained board with N=138: above n_exact_max (so the
+    """A moderately-constrained board with N=117: above n_exact_max (so the
     fallback runs) but far below fallback_cap (so it takes the *non-saturated*
-    branch, which the saturated-path guard above does not cover). Found by a
-    randomized sweep; one of its questions has branch counts 96+138+138+96=468
-    against a parent count of 138, which made the old `n`-normalized score
-    2.97 and hence p_win = -1.97 for that alternative."""
+    branch, which the saturated-path guard above does not cover).
+
+    The ORIGINAL fixture here (N=138, `T impair, U impair, K1, P3, Q0, A2,
+    I0`) turned out to itself be contradictory -- see the note on
+    `reported_cli_state` for the root cause (a since-fixed gap in
+    solver.py's `apply_total`) that let a globally-unreachable row/col
+    total combination through unrejected. This replacement clue is a
+    genuinely valid N=117 state, found by random search, used to keep
+    covering the same non-saturated-fallback code path."""
     clue = Clue()
-    clue.parity["T"] = "Impair"
-    clue.parity["U"] = "Impair"
-    clue.row_totals["K"] = 1
-    clue.row_totals["P"] = 3
-    clue.row_totals["Q"] = 0
-    clue.col_totals["A"] = 2
-    clue.col_totals["I"] = 0
+    clue.row_totals["L"] = 3
+    clue.row_totals["J"] = 2
+    clue.row_totals["S"] = 1
+    clue.col_totals["F"] = 3
+    clue.col_totals["B"] = 2
+    clue.parity["V"] = "Impair"
+    clue.parity["Y"] = "Pair"
     s = DigitcodeSolver()
     s.propagate(clue)
     return s, clue

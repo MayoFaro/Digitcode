@@ -6,6 +6,16 @@ from ..mapping import ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contribut
 from ..solver import DigitcodeSolver, Clue
 from ..strategy import evaluate_race_strategy
 
+# Cap for the per-alternative solution-range display (min/max solutions an
+# answer to that question could leave). Must stay a lower bound, never a
+# fabricated exact number -- see _question_solution_range. Independent of
+# strategy.py's own fallback_cap: this one is tuned for UI latency on the
+# handful of questions actually rendered, not for scoring the full question
+# set. Must match app.js's MAX_ALTERNATIVES_SHOWN (how many alternatives get
+# a range computed at all).
+RANGE_DISPLAY_CAP = 2000
+MAX_ALTERNATIVES_WITH_RANGE = 10
+
 
 def _existing_comparison(comparisons, left, right):
     """Return the stored tuple describing the current relation between
@@ -29,6 +39,39 @@ def clone_clue(c: Clue) -> Clue:
     return nc
 
 
+def _child_solver(base: DigitcodeSolver, clue: Clue):
+    child = DigitcodeSolver()
+    child.domains = {p: set(v) for p, v in base.domains.items()}
+    try:
+        child.propagate(clue)
+    except ValueError:
+        return None
+    return child
+
+
+def _question_solution_range(solver: DigitcodeSolver, clue: Clue, q: dict, cap: int) -> dict | None:
+    """Min/max solution count across `q`'s reachable answers. Each bound is
+    only trustworthy as an exact value if its own branch didn't hit `cap`
+    (a capped branch means the true count was >= cap but unknown beyond
+    that) -- callers must check `min_capped`/`max_capped` before displaying
+    a bound as exact."""
+    branches = []
+    for out in q["outcomes"]:
+        child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+        child = _child_solver(solver, child_clue)
+        if child is None:
+            continue
+        n = child.count_solutions_capped(child_clue, cap=cap)
+        if n == 0:
+            continue
+        branches.append((n, n >= cap))
+    if not branches:
+        return None
+    min_n, min_capped = min(branches, key=lambda t: t[0])
+    max_n, max_capped = max(branches, key=lambda t: t[0])
+    return {"min": min_n, "min_capped": min_capped, "max": max_n, "max_capped": max_capped}
+
+
 def create_app() -> Flask:
     app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -44,7 +87,13 @@ def create_app() -> Flask:
         solver = DigitcodeSolver()
         solver.propagate(state["clue"])  # may raise ValueError; callers must catch it
         snap = solver.snapshot()
-        sols = solver.enumerate_solutions(state["clue"], limit=5)
+        # Exact total (never capped -- fast enough even on an empty board,
+        # ~0.3s worst case; see count_solutions_capped). The candidate list
+        # itself stays capped at 6: it's also used to populate the "j'ai
+        # tenté celle-ci, raté" dropdown below regardless of the total, and
+        # the frontend only displays it inline when n_solutions_total <= 6.
+        n_solutions_total = solver.count_solutions_capped(state["clue"], cap=None)
+        sols = solver.enumerate_solutions(state["clue"], limit=6)
         # Shorter deadline than strategy.py's CLI-tuned default (3.0s): a web
         # request must not stall for seconds on the exact engine before falling
         # back. Passed explicitly here rather than changing the library default.
@@ -56,9 +105,19 @@ def create_app() -> Flask:
             state["my_excluded"],
             time_budget_s=1.5,
         )
+        all_questions_by_label = {
+            q["label"]: q for q in solver.enumerate_all_questions(state["clue"])
+            if len(q["outcomes"]) > 1
+        }
+        for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_WITH_RANGE]:
+            q = all_questions_by_label.get(alt["label"])
+            rng = _question_solution_range(solver, state["clue"], q, RANGE_DISPLAY_CAP) if q else None
+            if rng is not None:
+                alt.update(rng)
         return {
             "domains": snap,
             "solutions": [solver.solution_to_string(s) for s in sols],
+            "n_solutions_total": n_solutions_total,
             "trace": solver.trace,
             "a_me": state["a_me"],
             "a_opp": state["a_opp"],

@@ -354,6 +354,19 @@ function renderPositionGrid(state) {
 
 // --- Main render --------------------------------------------------------------
 
+// A bound is only exact if its own branch didn't hit the server's display
+// cap (min_capped/max_capped) -- a capped branch's true count is >= the
+// reported number but otherwise unknown, so it's shown as a lower bound
+// ("≥N") rather than presented as if it were exact.
+function formatSolutionRange(alt) {
+  if (alt.min === undefined || alt.max === undefined) return "?";
+  const fmt = (n, capped) => (capped ? `≥${n}` : `${n}`);
+  if (alt.min === alt.max && !alt.min_capped && !alt.max_capped) {
+    return `${alt.min} solution${alt.min > 1 ? "s" : ""}`;
+  }
+  return `${fmt(alt.min, alt.min_capped)}–${fmt(alt.max, alt.max_capped)} solutions`;
+}
+
 function render(state) {
   // A null state means the request never reached the server; showError() has
   // already put the reason in the banner, so keep the last rendered view.
@@ -396,8 +409,13 @@ function render(state) {
   renderComparisons(state);
   renderPositionGrid(state);
 
-  document.getElementById("n-solutions").textContent = state.solutions.length;
-  document.getElementById("solutions-list").textContent = state.solutions.join(" ; ");
+  document.getElementById("n-solutions").textContent = state.n_solutions_total;
+  // The candidate list is only meaningful to show inline when short enough
+  // to read at a glance -- state.solutions itself stays capped at 6 (it also
+  // feeds the "j'ai tenté celle-ci, raté" dropdown below regardless of the
+  // total), so this check is purely about what to display, not what's sent.
+  document.getElementById("solutions-list").textContent =
+    state.n_solutions_total <= 6 ? state.solutions.join(" ; ") : "";
 
   // Candidates already tried and failed must not be selectable again: with a
   // lifetime budget of 2 attempts, re-picking one would burn an attempt on a
@@ -429,12 +447,11 @@ function render(state) {
   guessEl.textContent = race.guess_now ? "OUI — proposez une solution !" : "Non, attendez.";
   guessEl.className = "guess-now " + (race.guess_now ? "guess-yes" : "guess-no");
 
-  const altLabel = race.exact ? "P(gagner)" : "réduction";
   const altEl = document.getElementById("alternatives");
   altEl.innerHTML = "";
   for (const alt of race.ranked_alternatives.slice(0, MAX_ALTERNATIVES_SHOWN)) {
     const li = document.createElement("li");
-    li.textContent = `${alt.label} — ${altLabel}=${(alt.p_win * 100).toFixed(1)}%`;
+    li.textContent = `${alt.label} — ${formatSolutionRange(alt)}`;
     if (alt.near_finish) li.classList.add("near-finish");
     altEl.appendChild(li);
   }
