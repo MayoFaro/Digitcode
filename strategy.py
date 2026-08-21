@@ -241,10 +241,16 @@ def _heuristic_fallback(solver: DigitcodeSolver, clue: Clue, questions: list, n_
         # "exact": False signaling the estimate is approximate.
         "p_win": 1.0 - best_score,
         "exact": False,
-        "best_question": {"qtype": best_q["qtype"], "label": best_q["label"]},
+        # near_finish is deliberately always False here: computing it would
+        # need the same per-branch exact counts the "exact" regime already
+        # has for free, but the fallback regime is exactly where those counts
+        # are unreliable/expensive (see the saturation note above) -- and a
+        # "near finish" signal is rarely meaningful this far from the endgame
+        # anyway.
+        "best_question": {"qtype": best_q["qtype"], "label": best_q["label"], "near_finish": False},
         "guess_now": a_me > 0 and 0 < n_gate <= 2,
         "ranked_alternatives": [
-            {"qtype": q["qtype"], "label": q["label"], "p_win": 1.0 - s} for s, q in scored[1:]
+            {"qtype": q["qtype"], "label": q["label"], "p_win": 1.0 - s, "near_finish": False} for s, q in scored[1:]
         ],
     }
 
@@ -259,6 +265,7 @@ def evaluate_race_strategy(
     node_budget: int = 20_000,
     fallback_cap: int = 500,
     time_budget_s: float = 3.0,
+    near_finish_threshold: int = 3,
 ) -> dict:
     n = solver.count_solutions_exact(clue, cap=n_exact_max + 1)
     questions = [q for q in solver.enumerate_all_questions(clue) if len(q["outcomes"]) > 1]
@@ -284,6 +291,12 @@ def evaluate_race_strategy(
                 sum_n_ans = sum(b[2] for b in branches)
                 if sum_n_ans == 0:
                     continue
+                # A question is "near finish" if at least one reachable answer
+                # would bring the solution count down to the threshold or
+                # below -- an "opportunity" reading (matches the project's
+                # existing "opportunités pouvant tomber à ≤N" vocabulary),
+                # not a "every answer closes the game" guarantee.
+                near_finish = any(n_ans <= near_finish_threshold for _, _, n_ans in branches)
                 total = 0.0
                 for child_clue, child_solver, n_ans in branches:
                     p = n_ans / sum_n_ans
@@ -294,7 +307,7 @@ def evaluate_race_strategy(
                     )
                     outcome_val = max(wait_val, gv) if gv is not None else wait_val
                     total += p * outcome_val
-                ranked.append((total, q))
+                ranked.append((total, q, near_finish))
             ranked.sort(key=lambda t: -t[0])
 
             direct_guess = _best_guess_value(
@@ -309,15 +322,15 @@ def evaluate_race_strategy(
                     "guess_now": direct_guess is not None, "ranked_alternatives": [],
                 }
 
-            best_val, best_q = ranked[0]
+            best_val, best_q, best_near_finish = ranked[0]
             guess_now = direct_guess is not None and direct_guess >= best_val
             return {
                 "p_win": max(best_val, direct_guess) if direct_guess is not None else best_val,
                 "exact": True,
-                "best_question": {"qtype": best_q["qtype"], "label": best_q["label"]},
+                "best_question": {"qtype": best_q["qtype"], "label": best_q["label"], "near_finish": best_near_finish},
                 "guess_now": guess_now,
                 "ranked_alternatives": [
-                    {"qtype": q["qtype"], "label": q["label"], "p_win": v} for v, q in ranked[1:]
+                    {"qtype": q["qtype"], "label": q["label"], "p_win": v, "near_finish": nf} for v, q, nf in ranked[1:]
                 ],
             }
         except _BudgetExceeded:
