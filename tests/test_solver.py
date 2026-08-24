@@ -1,6 +1,46 @@
 import pytest
 
 from digitcode.solver import DigitcodeSolver, Clue
+from tests.conftest import make_solver
+
+
+def _tuple_of(sol: dict) -> tuple:
+    return (sol["T"], sol["U"], sol["V"], sol["W"], sol["X"], sol["Y"])
+
+
+def test_enumerate_solutions_excludes_given_candidates():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    all_sols = s.enumerate_solutions(clue, limit=10)
+    assert len(all_sols) == 4
+    excluded = {_tuple_of(all_sols[0])}
+    remaining = s.enumerate_solutions(clue, limit=10, excluded=excluded)
+    assert len(remaining) == 3
+    assert _tuple_of(remaining[0]) not in excluded
+
+
+def test_count_solutions_exact_excludes_given_candidates():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    excluded = {_tuple_of(s.enumerate_solutions(clue, limit=10)[0])}
+    assert s.count_solutions_exact(clue, cap=None) == 4
+    assert s.count_solutions_exact(clue, cap=None, excluded=excluded) == 3
+
+
+def test_count_solutions_capped_excludes_given_candidates():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    excluded = {_tuple_of(s.enumerate_solutions(clue, limit=10)[0])}
+    assert s.count_solutions_capped(clue) == 4
+    assert s.count_solutions_capped(clue, excluded=excluded) == 3
+
+
+def test_excluding_all_remaining_candidates_yields_zero():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    excluded = {_tuple_of(sol) for sol in s.enumerate_solutions(clue, limit=10)}
+    assert s.count_solutions_capped(clue, excluded=excluded) == 0
+    assert s.enumerate_solutions(clue, limit=10, excluded=excluded) == []
 
 
 def test_count_solutions_capped_matches_exact_on_empty_board():

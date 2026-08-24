@@ -389,6 +389,48 @@ def test_near_finish_matches_the_recommended_questions_own_branch_counts():
         assert entry["near_finish"] == expected, entry["label"]
 
 
+def test_question_branches_excludes_given_candidates():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})  # N=4
+    clue = Clue()
+    q = next(q for q in s.enumerate_all_questions(clue) if len(q["outcomes"]) > 1)
+
+    branches_all = _question_branches(s, clue, q)
+    assert sum(n for _, _, n in branches_all) == 4
+
+    excluded = frozenset({_solution_tuple(s.enumerate_solutions(clue, limit=10)[0])})
+    branches_excl = _question_branches(s, clue, q, excluded=excluded)
+    assert sum(n for _, _, n in branches_excl) == 3
+
+
+def test_evaluate_race_strategy_gate_uses_effective_count_after_exclusion():
+    # Raw N=3 is above n_exact_max=1, so without exclusion this falls back
+    # to the heuristic regime. Excluding 2 of the 3 already-tried candidates
+    # brings the effective count to 1, which must flip the regime to exact
+    # -- the top-level gate has to see the same reduced count the rest of
+    # the engine now uses.
+    s = make_solver({"Y": {7, 8, 9}})
+    clue = Clue()
+    sols = s.enumerate_solutions(clue, limit=10)
+    assert len(sols) == 3
+    excluded = frozenset({_solution_tuple(sols[0]), _solution_tuple(sols[1])})
+
+    without = evaluate_race_strategy(s, clue, a_me=2, a_opp=2, n_exact_max=1)
+    assert without["exact"] is False
+
+    res = evaluate_race_strategy(s, clue, a_me=2, a_opp=2, my_excluded=excluded, n_exact_max=1)
+    assert res["exact"] is True
+    assert res["p_win"] == 1.0
+
+
+def test_evaluate_race_strategy_probabilities_stay_within_zero_one_with_exclusion():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})  # N=4
+    clue = Clue()
+    sols = s.enumerate_solutions(clue, limit=10)
+    excluded = frozenset({_solution_tuple(sols[0]), _solution_tuple(sols[1])})
+    res = evaluate_race_strategy(s, clue, a_me=2, a_opp=2, my_excluded=excluded)
+    assert_probabilities(res, "N=4 with 2 of 4 excluded")
+
+
 def test_near_finish_always_false_in_the_fallback_regime():
     s = DigitcodeSolver()
     s.propagate(Clue())

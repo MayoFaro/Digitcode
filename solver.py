@@ -231,13 +231,16 @@ class DigitcodeSolver:
     def _clone_domains(self, dom: Dict[Pos, Set[int]]) -> Dict[Pos, Set[int]]:
         return {p: set(vs) for p, vs in dom.items()}
 
-    def enumerate_solutions(self, clue: Clue, limit: int = 3) -> List[Dict[Pos, int]]:
+    def enumerate_solutions(self, clue: Clue, limit: int = 3, excluded: frozenset = frozenset()) -> List[Dict[Pos, int]]:
         start = self._clone_domains(self.domains)
         out: List[Dict[Pos,int]] = []
         def dfs(dom):
             if len(out) >= limit: return
             full = self._code_from_domains(dom)
-            if full is not None: out.append(full); return
+            if full is not None:
+                if tuple(full[p] for p in POSITIONS) not in excluded:
+                    out.append(full)
+                return
             var = self._best_var(dom)
             if var is None: return
             for val in sorted(dom[var]):
@@ -555,7 +558,7 @@ class DigitcodeSolver:
         return results
 
     # ===================== EV METRICS (exact, uniform over solutions) =====================
-    def _dfs_count(self, dom, clue: Clue, cap: Optional[int]=None) -> int:
+    def _dfs_count(self, dom, clue: Clue, cap: Optional[int]=None, excluded: frozenset = frozenset()) -> int:
         count = 0
         def dfs(local_dom):
             nonlocal count
@@ -563,7 +566,8 @@ class DigitcodeSolver:
                 return
             full = self._code_from_domains(local_dom)
             if full is not None:
-                count += 1
+                if tuple(full[p] for p in POSITIONS) not in excluded:
+                    count += 1
                 return
             var = self._best_var(local_dom)
             if var is None:
@@ -581,16 +585,16 @@ class DigitcodeSolver:
         dfs(dom)
         return count
 
-    def count_solutions_exact(self, clue: Clue, cap: Optional[int]=None) -> int:
+    def count_solutions_exact(self, clue: Clue, cap: Optional[int]=None, excluded: frozenset = frozenset()) -> int:
         child = DigitcodeSolver()
         child.domains = self._clone_domains(self.domains)
         try:
             child.propagate(clue)
         except Exception:
             return 0
-        return child._dfs_count(child.domains, clue, cap=cap)
+        return child._dfs_count(child.domains, clue, cap=cap, excluded=excluded)
 
-    def count_solutions_capped(self, clue: Clue, cap: Optional[int] = None) -> int:
+    def count_solutions_capped(self, clue: Clue, cap: Optional[int] = None, excluded: frozenset = frozenset()) -> int:
         """Exact solution count via direct constraint-checking over the
         (already-propagated) domains, without the per-node solver-object
         creation and full re-propagation that makes `count_solutions_exact`
@@ -623,6 +627,8 @@ class DigitcodeSolver:
 
         count = 0
         for combo in itertools.product(*doms):
+            if combo in excluded:
+                continue
             if any(combo[i] == combo[j] for i, j in adj_idx):
                 continue
             occurrences: Dict[int, int] = {}

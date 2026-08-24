@@ -1,4 +1,5 @@
-from digitcode.web.app import create_app
+from digitcode.web.app import create_app, _question_solution_counts
+from digitcode.solver import DigitcodeSolver, Clue
 
 
 def test_get_state_on_fresh_board_returns_full_domains():
@@ -191,6 +192,34 @@ def test_get_state_includes_my_excluded():
     assert client.get("/api/state").get_json()["my_excluded"] == ["012 345"]
 
 
+def test_post_guess_failed_me_removes_candidate_from_solutions_and_total():
+    app = create_app()
+    client = app.test_client()
+    # Narrows the board to a small, fixed N=4 (same fixture as
+    # test_strategy.py's reported_cli_state).
+    for row, val in (("K", 6), ("S", 1)):
+        client.post("/api/clue", json={"type": "row_total", "row": row, "value": val})
+    for col, val in (("H", 3), ("C", 3), ("E", 1)):
+        client.post("/api/clue", json={"type": "col_total", "col": col, "value": val})
+    for pos, par in (("T", "Pair"), ("W", "Pair"), ("Y", "Pair"), ("X", "Impair")):
+        client.post("/api/clue", json={"type": "parity", "pos": pos, "value": par})
+
+    before = client.get("/api/state").get_json()
+    assert before["n_solutions_total"] == 4
+    assert len(before["solutions"]) == 4
+
+    tried = before["solutions"][0]
+    t, u, v = (int(c) for c in tried[:3])
+    w, x, y = (int(c) for c in tried[4:])
+    r = client.post("/api/guess-failed", json={"who": "me", "candidate": [t, u, v, w, x, y]})
+    assert r.status_code == 200
+
+    after = r.get_json()
+    assert after["n_solutions_total"] == 3
+    assert tried not in after["solutions"]
+    assert len(after["solutions"]) == 3
+
+
 def test_post_clue_contradiction_rolls_back_and_returns_400():
     app = create_app()
     client = app.test_client()
@@ -330,3 +359,55 @@ def test_post_clue_comparison_replaces_existing_relation_reversed_order():
     comparisons = r.get_json()["comparisons"]
     assert len(comparisons) == 1
     assert ["T", ">", "U"] not in comparisons and ["U", ">", "T"] in comparisons
+
+
+def _n4_clue_client():
+    app = create_app()
+    client = app.test_client()
+    for row, val in (("K", 6), ("S", 1)):
+        client.post("/api/clue", json={"type": "row_total", "row": row, "value": val})
+    for col, val in (("H", 3), ("C", 3), ("E", 1)):
+        client.post("/api/clue", json={"type": "col_total", "col": col, "value": val})
+    for pos, par in (("T", "Pair"), ("W", "Pair"), ("Y", "Pair"), ("X", "Impair")):
+        client.post("/api/clue", json={"type": "parity", "pos": pos, "value": par})
+    return client
+
+
+def test_question_solution_counts_returns_sorted_deduplicated_list():
+    solver = DigitcodeSolver()
+    clue = Clue()
+    clue.row_totals["K"] = 6
+    clue.row_totals["S"] = 1
+    clue.col_totals["H"] = 3
+    clue.col_totals["C"] = 3
+    clue.col_totals["E"] = 1
+    clue.parity["T"] = "Pair"
+    clue.parity["W"] = "Pair"
+    clue.parity["Y"] = "Pair"
+    clue.parity["X"] = "Impair"
+    solver.propagate(clue)
+    questions = [q for q in solver.enumerate_all_questions(clue) if len(q["outcomes"]) > 1]
+    q = questions[0]
+    counts = _question_solution_counts(solver, clue, q, cap=2000)
+    ns = [c["n"] for c in counts]
+    assert ns == sorted(set(ns))  # sorted and deduplicated
+    assert all(isinstance(c["capped"], bool) for c in counts)
+
+
+def test_get_state_best_question_includes_solution_counts():
+    client = _n4_clue_client()
+    body = client.get("/api/state").get_json()
+    assert body["race"]["exact"] is True
+    assert "solution_counts" in body["race"]["best_question"]
+    counts = body["race"]["best_question"]["solution_counts"]
+    assert len(counts) >= 1
+    assert all("n" in c and "capped" in c for c in counts)
+
+
+def test_get_state_alternatives_include_solution_counts():
+    client = _n4_clue_client()
+    body = client.get("/api/state").get_json()
+    alts = body["race"]["ranked_alternatives"]
+    assert alts
+    for alt in alts[:3]:
+        assert "solution_counts" in alt

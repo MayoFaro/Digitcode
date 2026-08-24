@@ -6,13 +6,13 @@ from ..mapping import ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contribut
 from ..solver import DigitcodeSolver, Clue
 from ..strategy import evaluate_race_strategy
 
-# Cap for the per-alternative solution-range display (min/max solutions an
-# answer to that question could leave). Must stay a lower bound, never a
-# fabricated exact number -- see _question_solution_range. Independent of
-# strategy.py's own fallback_cap: this one is tuned for UI latency on the
-# handful of questions actually rendered, not for scoring the full question
-# set. Must match app.js's MAX_ALTERNATIVES_SHOWN (how many alternatives get
-# a range computed at all).
+# Cap for the per-question solution-count display (how many solutions each
+# reachable answer could leave). Must stay a lower bound, never a fabricated
+# exact number -- see _question_solution_counts. Independent of strategy.py's
+# own fallback_cap: this one is tuned for UI latency on the handful of
+# questions actually rendered, not for scoring the full question set. Must
+# match app.js's MAX_ALTERNATIVES_SHOWN (how many alternatives get counts
+# computed at all).
 RANGE_DISPLAY_CAP = 2000
 MAX_ALTERNATIVES_WITH_RANGE = 10
 
@@ -49,27 +49,25 @@ def _child_solver(base: DigitcodeSolver, clue: Clue):
     return child
 
 
-def _question_solution_range(solver: DigitcodeSolver, clue: Clue, q: dict, cap: int) -> dict | None:
-    """Min/max solution count across `q`'s reachable answers. Each bound is
-    only trustworthy as an exact value if its own branch didn't hit `cap`
-    (a capped branch means the true count was >= cap but unknown beyond
-    that) -- callers must check `min_capped`/`max_capped` before displaying
-    a bound as exact."""
-    branches = []
+def _question_solution_counts(solver: DigitcodeSolver, clue: Clue, q: dict, cap: int, excluded: frozenset = frozenset()) -> list[dict]:
+    """Sorted, deduplicated list of {"n", "capped"} for every reachable
+    answer's resulting solution count. A min/max range can't tell apart a
+    question whose branches are exactly {1, 6} from one that spans every
+    value 1..6 -- those play very differently (the former never risks
+    leaving the opponent at 2-4), so every distinct reachable count is
+    reported. `capped` means the true count was >= `cap` but unknown beyond
+    that -- never presented as an exact value."""
+    counts: dict[int, bool] = {}
     for out in q["outcomes"]:
         child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
         child = _child_solver(solver, child_clue)
         if child is None:
             continue
-        n = child.count_solutions_capped(child_clue, cap=cap)
+        n = child.count_solutions_capped(child_clue, cap=cap, excluded=excluded)
         if n == 0:
             continue
-        branches.append((n, n >= cap))
-    if not branches:
-        return None
-    min_n, min_capped = min(branches, key=lambda t: t[0])
-    max_n, max_capped = max(branches, key=lambda t: t[0])
-    return {"min": min_n, "min_capped": min_capped, "max": max_n, "max_capped": max_capped}
+        counts[n] = counts.get(n, False) or (n >= cap)
+    return [{"n": n, "capped": capped} for n, capped in sorted(counts.items())]
 
 
 def create_app() -> Flask:
@@ -92,8 +90,8 @@ def create_app() -> Flask:
         # itself stays capped at 6: it's also used to populate the "j'ai
         # tenté celle-ci, raté" dropdown below regardless of the total, and
         # the frontend only displays it inline when n_solutions_total <= 6.
-        n_solutions_total = solver.count_solutions_capped(state["clue"], cap=None)
-        sols = solver.enumerate_solutions(state["clue"], limit=6)
+        n_solutions_total = solver.count_solutions_capped(state["clue"], cap=None, excluded=state["my_excluded"])
+        sols = solver.enumerate_solutions(state["clue"], limit=6, excluded=state["my_excluded"])
         # Shorter deadline than strategy.py's CLI-tuned default (3.0s): a web
         # request must not stall for seconds on the exact engine before falling
         # back. Passed explicitly here rather than changing the library default.
@@ -109,11 +107,19 @@ def create_app() -> Flask:
             q["label"]: q for q in solver.enumerate_all_questions(state["clue"])
             if len(q["outcomes"]) > 1
         }
+
+        def _annotate(entry: dict) -> None:
+            q = all_questions_by_label.get(entry["label"])
+            if q is None:
+                return
+            counts = _question_solution_counts(solver, state["clue"], q, RANGE_DISPLAY_CAP, excluded=state["my_excluded"])
+            if counts:
+                entry["solution_counts"] = counts
+
+        if race["best_question"] is not None:
+            _annotate(race["best_question"])
         for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_WITH_RANGE]:
-            q = all_questions_by_label.get(alt["label"])
-            rng = _question_solution_range(solver, state["clue"], q, RANGE_DISPLAY_CAP) if q else None
-            if rng is not None:
-                alt.update(rng)
+            _annotate(alt)
         return {
             "domains": snap,
             "solutions": [solver.solution_to_string(s) for s in sols],

@@ -57,8 +57,16 @@ def _best_guess_value(
     attempt is available or if no candidates remain after exclusion."""
     if attempts <= 0:
         return None
-    candidates = [_solution_tuple(s) for s in solver.enumerate_solutions(clue, limit=n_total + 1)]
-    remaining = [c for c in candidates if c not in excluded]
+    # `excluded` is passed to enumerate_solutions itself (not just filtered
+    # afterwards): callers may pass an `n_total` that already accounts for
+    # exclusion (see evaluate_race_strategy), so `limit=n_total + 1` must be
+    # applied to the already-excluded pool, not the raw one -- otherwise a
+    # low limit could stop the DFS before reaching enough non-excluded
+    # candidates to fill it.
+    remaining = [
+        _solution_tuple(s)
+        for s in solver.enumerate_solutions(clue, limit=n_total + 1, excluded=excluded)
+    ]
     n_remaining = len(remaining)
     if n_remaining == 0:
         return None
@@ -71,8 +79,17 @@ def _best_guess_value(
     return p_hit * win_value + p_miss * lose_recurse(new_excluded)
 
 
-def _question_branches(solver: DigitcodeSolver, clue: Clue, q: dict, cap: Optional[int] = None) -> list:
+def _question_branches(
+    solver: DigitcodeSolver, clue: Clue, q: dict, cap: Optional[int] = None,
+    excluded: FrozenSet[Candidate] = frozenset(),
+) -> list:
     """Reachable (child_clue, child_solver, n_solutions) branches of `q`.
+
+    `excluded` (candidates I have already tried and failed on) is subtracted
+    from every branch's count, so a candidate ruled out by a real failed
+    guess stops being treated as a live possibility anywhere in the engine,
+    not just in the immediate guess-now decision -- see the note in
+    `evaluate_race_strategy`.
 
     Callers must normalize branch probabilities by `sum(n for _, _, n in ...)`
     and NOT by the parent's own count: the two are not guaranteed equal (see
@@ -84,7 +101,7 @@ def _question_branches(solver: DigitcodeSolver, clue: Clue, q: dict, cap: Option
         child_solver = _solver_for(solver, child_clue)
         if child_solver is None:
             continue
-        n_ans = child_solver.count_solutions_exact(child_clue, cap=cap)
+        n_ans = child_solver.count_solutions_exact(child_clue, cap=cap, excluded=excluded)
         if n_ans == 0:
             continue
         branches.append((child_clue, child_solver, n_ans))
@@ -117,7 +134,13 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         memo[key] = 0.0
         return 0.0
 
-    n = cur_solver.count_solutions_exact(cur_clue, cap=None)
+    # `excl_` (candidates I've already tried and failed on) is a fact about
+    # the board itself, not about whose turn it is -- it must reduce `n`
+    # here regardless of `mover`. It is NOT applied to the opponent's own
+    # guess-now simulation below (that always uses a fresh frozenset()),
+    # which models a separate concern: the opponent guessing a different,
+    # untracked puzzle.
+    n = cur_solver.count_solutions_exact(cur_clue, cap=None, excluded=excl_)
     if n == 0:
         memo[key] = 0.0
         return 0.0
@@ -151,7 +174,7 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         # fixed, which differs between parent and child enumerations (measured:
         # a parent counting 4 with branches counting 1+4+1=6). Dividing by `n`
         # produced probability weights summing above 1 and p_win > 1.
-        branches = _question_branches(cur_solver, cur_clue, q)
+        branches = _question_branches(cur_solver, cur_clue, q, excluded=excl_)
         sum_n_ans = sum(b[2] for b in branches)
         if sum_n_ans == 0:
             continue
@@ -181,10 +204,16 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
     return result
 
 
-def _heuristic_fallback(solver: DigitcodeSolver, clue: Clue, questions: list, n_gate: int, a_me: int, fallback_cap: int) -> dict:
+def _heuristic_fallback(
+    solver: DigitcodeSolver, clue: Clue, questions: list, n_gate: int, a_me: int, fallback_cap: int,
+    my_excluded: FrozenSet[Candidate] = frozenset(),
+) -> dict:
     """n_gate is the (possibly heavily capped, at n_exact_max+1) count used
     only for the guess_now check. It is NOT used for scoring: scoring needs
-    its own count against fallback_cap (a much higher cap), computed below."""
+    its own count against fallback_cap (a much higher cap), computed below.
+
+    `my_excluded` (candidates already tried and failed) is subtracted from
+    both, so a ruled-out candidate doesn't inflate the score against."""
     def _no_info() -> dict:
         return {
             "p_win": 0.5, "exact": False, "best_question": None,
@@ -194,7 +223,7 @@ def _heuristic_fallback(solver: DigitcodeSolver, clue: Clue, questions: list, n_
     if not questions:
         return _no_info()
 
-    n = solver.count_solutions_exact(clue, cap=fallback_cap)
+    n = solver.count_solutions_exact(clue, cap=fallback_cap, excluded=my_excluded)
     if n == 0:
         # Degenerate (contradictory) board: nothing to score against.
         # Defensive -- `_exact_value` and the exact-path gate already treat
@@ -225,7 +254,7 @@ def _heuristic_fallback(solver: DigitcodeSolver, clue: Clue, questions: list, n_
         # average of terms <= 1 -- is always in [0, 1] and so is 1 - score.
         scored = []
         for q in questions:
-            branches = _question_branches(solver, clue, q, cap=fallback_cap)
+            branches = _question_branches(solver, clue, q, cap=fallback_cap, excluded=my_excluded)
             sum_n_r = sum(b[2] for b in branches)
             if sum_n_r == 0:
                 scored.append((1.0, q))  # no reachable branch -> no reduction
@@ -267,7 +296,11 @@ def evaluate_race_strategy(
     time_budget_s: float = 3.0,
     near_finish_threshold: int = 3,
 ) -> dict:
-    n = solver.count_solutions_exact(clue, cap=n_exact_max + 1)
+    # Candidates I've already tried and failed on are gone regardless of
+    # regime: subtracting them here keeps the exact/fallback gate, and every
+    # count derived from `n` below, consistent with what's actually still
+    # possible.
+    n = solver.count_solutions_exact(clue, cap=n_exact_max + 1, excluded=my_excluded)
     questions = [q for q in solver.enumerate_all_questions(clue) if len(q["outcomes"]) > 1]
 
     if 0 < n <= n_exact_max:
@@ -287,7 +320,7 @@ def evaluate_race_strategy(
             for q in questions:
                 # Normalized by this question's own branch-count sum, not by
                 # `n` -- see `_question_branches` and `_clue_signature`.
-                branches = _question_branches(solver, clue, q)
+                branches = _question_branches(solver, clue, q, excluded=my_excluded)
                 sum_n_ans = sum(b[2] for b in branches)
                 if sum_n_ans == 0:
                     continue
@@ -336,4 +369,4 @@ def evaluate_race_strategy(
         except _BudgetExceeded:
             pass
 
-    return _heuristic_fallback(solver, clue, questions, n, a_me, fallback_cap)
+    return _heuristic_fallback(solver, clue, questions, n, a_me, fallback_cap, my_excluded)

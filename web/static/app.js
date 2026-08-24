@@ -354,17 +354,27 @@ function renderPositionGrid(state) {
 
 // --- Main render --------------------------------------------------------------
 
-// A bound is only exact if its own branch didn't hit the server's display
-// cap (min_capped/max_capped) -- a capped branch's true count is >= the
-// reported number but otherwise unknown, so it's shown as a lower bound
-// ("≥N") rather than presented as if it were exact.
-function formatSolutionRange(alt) {
-  if (alt.min === undefined || alt.max === undefined) return "?";
-  const fmt = (n, capped) => (capped ? `≥${n}` : `${n}`);
-  if (alt.min === alt.max && !alt.min_capped && !alt.max_capped) {
-    return `${alt.min} solution${alt.min > 1 ? "s" : ""}`;
+// Below the threshold, every distinct reachable solution count is listed
+// exactly -- that's precisely the zone where it matters whether a question
+// can leave 2-4 solutions (letting the opponent finish next turn) versus
+// jumping straight to 1 or staying safely above the threshold. A "1-6"
+// range would be genuinely ambiguous here: does every value 1..6 occur, or
+// only the extremes? Above the threshold the distinction isn't actionable,
+// so those counts collapse into a single ">N" bucket instead of a long list.
+const SOLUTION_COUNT_EXACT_THRESHOLD = 4;
+
+function formatSolutionCounts(entry) {
+  const counts = entry.solution_counts;
+  if (!counts || !counts.length) return "?";
+  const small = counts.filter((c) => c.n <= SOLUTION_COUNT_EXACT_THRESHOLD).map((c) => c.n);
+  const hasLarge = counts.some((c) => c.n > SOLUTION_COUNT_EXACT_THRESHOLD);
+  const parts = small.map(String);
+  if (hasLarge) parts.push(`>${SOLUTION_COUNT_EXACT_THRESHOLD}`);
+  if (parts.length === 1) {
+    const singular = small.length === 1 && small[0] === 1;
+    return `${parts[0]} solution${singular ? "" : "s"}`;
   }
-  return `${fmt(alt.min, alt.min_capped)}–${fmt(alt.max, alt.max_capped)} solutions`;
+  return `${parts.slice(0, -1).join(", ")} ou ${parts[parts.length - 1]} solutions`;
 }
 
 function render(state) {
@@ -417,14 +427,12 @@ function render(state) {
   document.getElementById("solutions-list").textContent =
     state.n_solutions_total <= 6 ? state.solutions.join(" ; ") : "";
 
-  // Candidates already tried and failed must not be selectable again: with a
-  // lifetime budget of 2 attempts, re-picking one would burn an attempt on a
-  // code already known to be wrong.
-  const excluded = new Set(state.my_excluded || []);
+  // state.solutions already excludes candidates already tried and failed
+  // (the backend subtracts my_excluded before enumerating), so every entry
+  // here is still a legitimate pick.
   const missSelect = document.getElementById("my-miss-select");
   missSelect.innerHTML = "";
   state.solutions.forEach((sol, i) => {
-    if (excluded.has(sol)) return;
     const opt = document.createElement("option");
     opt.value = i;
     opt.textContent = sol;
@@ -438,7 +446,9 @@ function render(state) {
   document.getElementById("p-win").textContent = (race.p_win * 100).toFixed(1) + "%";
   document.getElementById("exact-tag").textContent = race.exact ? "(exact)" : "(estimation)";
   const bestQuestionEl = document.getElementById("best-question");
-  bestQuestionEl.textContent = race.best_question ? race.best_question.label : "(aucune)";
+  bestQuestionEl.textContent = race.best_question
+    ? `${race.best_question.label} — ${formatSolutionCounts(race.best_question)}`
+    : "(aucune)";
   // near_finish: at least one reachable answer to this question would bring
   // the solution count down to a handful -- flagged so the player notices a
   // question that could effectively close the game out.
@@ -451,7 +461,7 @@ function render(state) {
   altEl.innerHTML = "";
   for (const alt of race.ranked_alternatives.slice(0, MAX_ALTERNATIVES_SHOWN)) {
     const li = document.createElement("li");
-    li.textContent = `${alt.label} — ${formatSolutionRange(alt)}`;
+    li.textContent = `${alt.label} — ${formatSolutionCounts(alt)}`;
     if (alt.near_finish) li.classList.add("near-finish");
     altEl.appendChild(li);
   }
