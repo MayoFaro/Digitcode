@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Flask, jsonify, request
 
-from ..mapping import ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
+from ..mapping import POSITIONS, ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
 from ..solver import DigitcodeSolver, Clue
 from ..strategy import evaluate_race_strategy
 
@@ -15,6 +15,32 @@ from ..strategy import evaluate_race_strategy
 # computed at all).
 RANGE_DISPLAY_CAP = 2000
 MAX_ALTERNATIVES_WITH_RANGE = 10
+
+
+def _display_domains(snap: dict, sols: list, n_solutions_total: int) -> dict:
+    """Domains to show in the "Chiffres" panel.
+
+    `snap` (raw per-position propagation) can be strictly wider than what's
+    actually reachable: `solver.py`'s `apply_no_equal_adjacent` /
+    `apply_max_two` only prune a domain once the OTHER side of the
+    constraint is already a singleton, so a value can survive local
+    propagation without appearing in any globally valid solution (same
+    root cause as the count-mismatch documented on strategy.py's
+    `_clue_signature`). When the candidate list is exhaustive (its count
+    matches `n_solutions_total`, not just capped at the display limit),
+    the true per-position possibilities are exactly the values observed
+    across those solutions -- free to compute, and always correct, unlike
+    `snap`. Falls back to `snap` when the list is a truncated view (more
+    solutions exist than are listed): observed-but-incomplete values would
+    be too narrow, not too wide, which is a worse failure mode than the
+    status quo."""
+    if len(sols) != n_solutions_total:
+        return snap
+    tight = {p: set() for p in POSITIONS}
+    for sol in sols:
+        for p, v in sol.items():
+            tight[p].add(v)
+    return {p: sorted(tight[p]) for p in POSITIONS}
 
 
 def _existing_comparison(comparisons, left, right):
@@ -121,7 +147,7 @@ def create_app() -> Flask:
         for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_WITH_RANGE]:
             _annotate(alt)
         return {
-            "domains": snap,
+            "domains": _display_domains(snap, sols, n_solutions_total),
             "solutions": [solver.solution_to_string(s) for s in sols],
             "n_solutions_total": n_solutions_total,
             "trace": solver.trace,

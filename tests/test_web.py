@@ -1,4 +1,4 @@
-from digitcode.web.app import create_app, _question_solution_counts
+from digitcode.web.app import create_app, _question_solution_counts, _display_domains
 from digitcode.solver import DigitcodeSolver, Clue
 
 
@@ -392,6 +392,46 @@ def test_question_solution_counts_returns_sorted_deduplicated_list():
     ns = [c["n"] for c in counts]
     assert ns == sorted(set(ns))  # sorted and deduplicated
     assert all(isinstance(c["capped"], bool) for c in counts)
+
+
+def test_display_domains_tightens_to_observed_values_when_list_is_complete():
+    # Raw propagation left T and X with wide, overlapping domains (the
+    # documented apply_no_equal_adjacent/apply_max_two gap: neither side of
+    # a constraint was already a singleton, so it never got pruned), even
+    # though the only two actual solutions agree that T is always 6 and X
+    # is only ever 4 or 7.
+    snap = {"T": [2, 5, 6], "U": [8], "V": [4], "W": [0], "X": [3, 4, 7, 8, 9], "Y": [8, 9]}
+    sols = [
+        {"T": 6, "U": 8, "V": 4, "W": 0, "X": 4, "Y": 8},
+        {"T": 6, "U": 8, "V": 4, "W": 0, "X": 7, "Y": 8},
+    ]
+    result = _display_domains(snap, sols, n_solutions_total=2)
+    assert result == {"T": [6], "U": [8], "V": [4], "W": [0], "X": [4, 7], "Y": [8]}
+
+
+def test_display_domains_falls_back_to_raw_snapshot_when_list_is_truncated():
+    # More solutions exist than the capped list holds -- deriving "tight"
+    # domains from only 6 of e.g. 40 solutions would show domains too
+    # NARROW (missing values that only appear in the unlisted solutions),
+    # a worse failure mode than the current wide-but-safe raw snapshot.
+    snap = {"T": [2, 5, 6], "U": [8], "V": [4], "W": [0], "X": [3, 4, 7, 8, 9], "Y": [8, 9]}
+    sols = [{"T": 6, "U": 8, "V": 4, "W": 0, "X": 4, "Y": 8}]
+    result = _display_domains(snap, sols, n_solutions_total=40)
+    assert result == snap
+
+
+def test_get_state_domains_match_observed_solution_values_when_complete():
+    client = _n4_clue_client()
+    body = client.get("/api/state").get_json()
+    assert body["n_solutions_total"] == len(body["solutions"])
+
+    pos_order = ["T", "U", "V", "W", "X", "Y"]
+    tight = {p: set() for p in pos_order}
+    for sol in body["solutions"]:
+        for p, d in zip(pos_order, sol.replace(" ", "")):
+            tight[p].add(int(d))
+    for p in pos_order:
+        assert set(body["domains"][p]) == tight[p], p
 
 
 def test_get_state_best_question_includes_solution_counts():
