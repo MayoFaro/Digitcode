@@ -112,6 +112,20 @@ class _BudgetExceeded(Exception):
     pass
 
 
+# How many of the fallback heuristic's top-ranked candidates get the extra
+# lookahead pass below (see _apply_lookahead_penalty). Keeps the added cost
+# bounded regardless of how many questions are available overall (measured
+# ~0.5s for 5 candidates on a N=117 board with ~39 questions -- extending
+# this to all questions would multiply the existing 1-ply pass's own cost
+# by the same factor).
+_LOOKAHEAD_BEAM_WIDTH = 4
+# How much a branch that hands the opponent an easy follow-up should worsen
+# a question's score, on the same [0, 1]-ish scale as the entropy score
+# lower-is-better convention. Chosen to be able to swap the ranking of two
+# otherwise-close candidates without overriding a clearly better one.
+_LOOKAHEAD_DANGER_PENALTY = 0.4
+
+
 def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_counter, node_budget, deadline):
     # NOTE: the key deliberately omits `base_solver` -- see the limitation
     # documented on `_clue_signature` and at the memo dict in
@@ -119,6 +133,24 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
     key = (_clue_signature(cur_clue), a_me_, a_opp_, excl_, mover)
     if key in memo:
         return memo[key]
+
+    # Once a player has exhausted both attempts, the other side can keep
+    # asking questions for free (no attempt spent) until the board is fully
+    # determined and declare with certainty -- confirmed rule, not an
+    # estimate. This must hold immediately regardless of the current board
+    # size or whose turn it nominally is: leaving it to the recursion below
+    # to "find its way" to this conclusion only works when the search is
+    # exhaustive, and stops working once search is beam-limited (some
+    # branches pruned away, including possibly the ones that reach this
+    # conclusion). Both attempts exhausted simultaneously is a separate,
+    # pre-existing degenerate case (nobody can ever declare) and is left
+    # alone below.
+    if a_me_ == 0 and a_opp_ > 0:
+        memo[key] = 0.0
+        return 0.0
+    if a_opp_ == 0 and a_me_ > 0:
+        memo[key] = 1.0
+        return 1.0
 
     node_counter[0] += 1
     # Two independent termination conditions: node count bounds the search
@@ -204,6 +236,73 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
     return result
 
 
+def _opponent_has_no_safe_question(child_solver: DigitcodeSolver, child_clue: Clue) -> bool:
+    """True if, from this branch, the opponent (whose turn is always next)
+    has NO safe question available: every question they could ask risks an
+    outcome that leaves a small, exactly-known number of candidates. A
+    single question with a risky-looking outcome among several safe ones
+    doesn't count -- a rational opponent just avoids that one question, so
+    only "every option is risky" is a genuine trap (same "no safe move"
+    concept as the pre-existing, unused `evaluate_forcing_questions` in
+    solver.py, adapted to reuse data already computed here instead of its
+    own separate exhaustive check).
+
+    A question with NO outcome below the exact-vs-capped boundary is
+    "safe": reuses `enumerate_all_questions`'s own per-outcome `n` field,
+    already computed there via a `limit=3` capped DFS, so this costs
+    nothing beyond the `enumerate_all_questions` call itself (measured
+    ~30ms even on a fully empty board). That cap makes `n` exact for 0, 1,
+    or 2 and ambiguous at exactly 3 (could be higher) -- treating n=3 as
+    safe is the conservative direction (under-flagging risk, never
+    inventing risk that isn't confirmed)."""
+    questions = child_solver.enumerate_all_questions(child_clue)
+    if not questions:
+        return True  # board already fully determined -- trivially no "move" needed
+    for q in questions:
+        if all(out["n"] >= 3 for out in q["outcomes"]):
+            return False  # this question is safe -- the opponent has an out
+    return True
+
+
+def _apply_lookahead_penalty(
+    solver: DigitcodeSolver, clue: Clue, scored: list, fallback_cap: int, my_excluded: FrozenSet[Candidate],
+) -> list:
+    """Adjusts the top `_LOOKAHEAD_BEAM_WIDTH` non-saturated candidates by
+    how often their branches hand the opponent (who always moves next) an
+    easy follow-up -- the 1-ply entropy score alone only looks at how much
+    *I* learn, not what I leave the opponent able to do with it. A
+    genuinely bounded approximation of "does this look like a trap or a
+    gift", deliberately not full alternating-turn search: extending
+    `_exact_value`'s own exact recursion to this N range was tried and
+    measured to blow the time budget outright even at N=8-16, because N
+    does not collapse to a terminal state quickly enough for width- or
+    depth-limiting the search tree alone to bound it -- this stays bounded
+    instead by never recursing past one extra ply and using only the
+    already-capped `n` field `enumerate_all_questions` computes anyway.
+
+    Takes and returns (score, q, risky) triples: `risky` (always False on
+    input) is set True for a beam entry with any weight on a branch that
+    hands the opponent a forced position, so callers can surface *why* a
+    question dropped in the ranking, not just that it did -- entries past
+    the beam keep `risky=False` (not evaluated, not a claim of safety)."""
+    beam = scored[:_LOOKAHEAD_BEAM_WIDTH]
+    rest = scored[_LOOKAHEAD_BEAM_WIDTH:]
+    adjusted = []
+    for score, q, _ in beam:
+        branches = _question_branches(solver, clue, q, cap=fallback_cap, excluded=my_excluded)
+        sum_n_r = sum(b[2] for b in branches)
+        if sum_n_r == 0:
+            adjusted.append((score, q, False))
+            continue
+        danger_mass = sum(
+            n_r for child_clue, child_solver, n_r in branches
+            if _opponent_has_no_safe_question(child_solver, child_clue)
+        )
+        danger_fraction = danger_mass / sum_n_r
+        adjusted.append((score + _LOOKAHEAD_DANGER_PENALTY * danger_fraction, q, danger_fraction > 0))
+    return sorted(adjusted, key=lambda t: t[0]) + rest
+
+
 def _heuristic_fallback(
     solver: DigitcodeSolver, clue: Clue, questions: list, n_gate: int, a_me: int, fallback_cap: int,
     my_excluded: FrozenSet[Candidate] = frozenset(),
@@ -240,7 +339,7 @@ def _heuristic_fallback(
         # distinct reachable answers -- already computed by
         # enumerate_all_questions, no extra DFS, immune to saturation.
         max_outcomes = max(len(q["outcomes"]) for q in questions)
-        scored = [(1.0 - len(q["outcomes"]) / max_outcomes, q) for q in questions]
+        scored = [(1.0 - len(q["outcomes"]) / max_outcomes, q, False) for q in questions]
     else:
         # n is exact (not saturated): minimize the expected *fraction* of
         # candidates surviving the answer -- Sum p_r^2 with p_r = n_r/sum_n_r.
@@ -257,13 +356,17 @@ def _heuristic_fallback(
             branches = _question_branches(solver, clue, q, cap=fallback_cap, excluded=my_excluded)
             sum_n_r = sum(b[2] for b in branches)
             if sum_n_r == 0:
-                scored.append((1.0, q))  # no reachable branch -> no reduction
+                scored.append((1.0, q, False))  # no reachable branch -> no reduction
                 continue
             score = sum((n_r / sum_n_r) ** 2 for _, _, n_r in branches)
-            scored.append((score, q))
+            scored.append((score, q, False))
 
     scored.sort(key=lambda t: t[0])  # lower score = more reduction = better
-    best_score, best_q = scored[0]
+    if not saturated:
+        # Only meaningful (and only affordable) once branch counts are exact
+        # -- see _apply_lookahead_penalty. Re-sorts its own beam internally.
+        scored = _apply_lookahead_penalty(solver, clue, scored, fallback_cap, my_excluded)
+    best_score, best_q, best_risky = scored[0]
     return {
         # Not a calibrated win probability in this regime -- a bounded
         # reduction-quality proxy (1 - normalized score), consistent with
@@ -275,11 +378,16 @@ def _heuristic_fallback(
         # has for free, but the fallback regime is exactly where those counts
         # are unreliable/expensive (see the saturation note above) -- and a
         # "near finish" signal is rarely meaningful this far from the endgame
-        # anyway.
-        "best_question": {"qtype": best_q["qtype"], "label": best_q["label"], "near_finish": False},
+        # anyway. lookahead_risk (see _apply_lookahead_penalty) IS computed
+        # here, for the top few candidates only -- unevaluated candidates
+        # report False (not a claim of safety, just "not checked").
+        "best_question": {
+            "qtype": best_q["qtype"], "label": best_q["label"], "near_finish": False, "lookahead_risk": best_risky,
+        },
         "guess_now": a_me > 0 and 0 < n_gate <= 2,
         "ranked_alternatives": [
-            {"qtype": q["qtype"], "label": q["label"], "p_win": 1.0 - s, "near_finish": False} for s, q in scored[1:]
+            {"qtype": q["qtype"], "label": q["label"], "p_win": 1.0 - s, "near_finish": False, "lookahead_risk": r}
+            for s, q, r in scored[1:]
         ],
     }
 

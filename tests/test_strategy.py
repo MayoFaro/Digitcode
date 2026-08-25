@@ -1,5 +1,10 @@
+import time
+
 from digitcode.solver import DigitcodeSolver, Clue
-from digitcode.strategy import _clue_signature, _solution_tuple, _solver_for, _best_guess_value, _question_branches
+from digitcode.strategy import (
+    _clue_signature, _solution_tuple, _solver_for, _best_guess_value, _question_branches, _exact_value,
+    _opponent_has_no_safe_question, _apply_lookahead_penalty,
+)
 
 
 def test_clue_signature_equal_for_equal_clues():
@@ -116,6 +121,35 @@ def test_no_attempts_left_means_i_can_never_win():
     res = evaluate_race_strategy(s, Clue(), a_me=0, a_opp=2)
     assert res["exact"] is True
     assert res["p_win"] == 0.0
+
+
+def test_exact_value_is_certain_loss_when_i_have_no_attempts_left():
+    # Once I've missed twice, the opponent can keep asking questions (free,
+    # no attempt spent) until the board is fully determined and declare
+    # with certainty -- I can never beat them to it. Board is already fully
+    # determined (n=1) and it's my turn: the "no informative question left"
+    # branch used to fall back to an arbitrary 0.5 stub instead of resolving
+    # to a certain loss, since I have no attempt to act on what I already know.
+    s = make_solver({})  # n=1
+    clue = Clue()
+    result = _exact_value(clue, 0, 2, frozenset(), "me", s, {}, [0], 20_000, time.monotonic() + 5)
+    assert result == 0.0
+
+
+def test_exact_value_is_certain_win_when_opponent_has_no_attempts_left():
+    s = make_solver({})  # n=1
+    clue = Clue()
+    result = _exact_value(clue, 2, 0, frozenset(), "opp", s, {}, [0], 20_000, time.monotonic() + 5)
+    assert result == 1.0
+
+
+def test_exact_value_both_out_of_attempts_stays_the_documented_degenerate_case():
+    # Both exhausted simultaneously is the pre-existing, documented edge
+    # case (nobody can ever declare) -- this fix must not touch it.
+    s = make_solver({})  # n=1
+    clue = Clue()
+    result = _exact_value(clue, 0, 0, frozenset(), "me", s, {}, [0], 20_000, time.monotonic() + 5)
+    assert result == 0.5
 
 
 def test_two_candidates_with_an_informative_question_is_a_certain_win():
@@ -298,6 +332,61 @@ def non_saturated_fallback_state():
     s = DigitcodeSolver()
     s.propagate(clue)
     return s, clue
+
+
+def test_opponent_has_no_safe_question_true_when_board_is_almost_resolved():
+    s = make_solver({"Y": {7, 8}})  # N=2 -- any question the opponent asks is decisive
+    result = _opponent_has_no_safe_question(s, Clue())
+    assert result is True
+
+
+def test_opponent_has_no_safe_question_false_on_a_wide_open_board():
+    s = DigitcodeSolver()
+    s.propagate(Clue())  # empty board -- opponent has plenty of safe questions
+    result = _opponent_has_no_safe_question(s, Clue())
+    assert result is False
+
+
+def test_lookahead_penalty_prefers_a_question_with_no_dangerous_branch():
+    # N=9 board where two real candidate questions are known (measured) to
+    # differ exactly on this axis: "colonne D" never hands the opponent a
+    # forced position (every branch: [3, 3, 3], opponent always has a safe
+    # question of their own); "ligne Q" does (branches [1, 4, 4] -- the
+    # n=1 branch leaves the opponent with nothing but risky questions).
+    # Both start from an artificially equal 1-ply score so only the
+    # lookahead penalty can be responsible for reordering them.
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})
+    clue = Clue()
+    all_qs = {q["label"]: q for q in s.enumerate_all_questions(clue) if len(q["outcomes"]) > 1}
+    safe_q = all_qs["Combien en colonne D ?"]
+    risky_q = all_qs["Combien en ligne Q ?"]
+
+    scored = [(0.5, risky_q, False), (0.5, safe_q, False)]  # risky listed first despite equal score
+    result = _apply_lookahead_penalty(s, clue, scored, fallback_cap=500, my_excluded=frozenset())
+
+    labels_in_order = [q["label"] for _, q, _ in result]
+    assert labels_in_order.index("Combien en colonne D ?") < labels_in_order.index("Combien en ligne Q ?")
+
+    risky_entry = next(r for r in result if r[1]["label"] == "Combien en ligne Q ?")
+    safe_entry = next(r for r in result if r[1]["label"] == "Combien en colonne D ?")
+    assert risky_entry[2] is True
+    assert safe_entry[2] is False
+
+
+def test_fallback_non_saturated_stays_within_time_budget_with_lookahead():
+    # Regression guard: the lookahead penalty adds real solver work (an
+    # enumerate_all_questions call per branch of the top few candidates) on
+    # top of the existing non-saturated pass -- measured ~0.9s combined on
+    # this N=117 fixture. Generous margin over that measurement, well under
+    # even the CLI's 3.0s default time_budget_s.
+    import time
+
+    s, clue = non_saturated_fallback_state()
+    t0 = time.monotonic()
+    res = evaluate_race_strategy(s, clue, a_me=2, a_opp=2, time_budget_s=1.5)
+    elapsed = time.monotonic() - t0
+    assert res["exact"] is False
+    assert elapsed < 3.0, f"non-saturated fallback with lookahead took {elapsed:.2f}s"
 
 
 def test_fallback_non_saturated_p_win_and_alternatives_stay_within_zero_one():

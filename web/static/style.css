@@ -14,6 +14,12 @@ body { font-family: sans-serif; max-width: 1100px; margin: 0 auto; padding: 1rem
 /* At least one reachable answer to this question would bring the solution
    count down to the near-finish threshold or below. */
 .near-finish { color: #c00; font-weight: bold; }
+/* Heuristic-regime only: this question's own reduction looks fine, but some
+   branch would hand the opponent (whose turn is always next) a position
+   with no safe question of their own -- distinct color from near-finish
+   since the two are mutually exclusive (different regimes) but mean very
+   different things (good for me vs. sets up the opponent). */
+.lookahead-risk { color: #b36b00; font-weight: bold; }
 .attempts-box { background: #fff6ee; padding: 1rem; border-radius: 6px; }
 
 /* --- Chips --------------------------------------------------------------- */

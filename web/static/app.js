@@ -377,6 +377,15 @@ function formatSolutionCounts(entry) {
   return `${parts.slice(0, -1).join(", ")} ou ${parts[parts.length - 1]} solutions`;
 }
 
+// A ⚠️ prefix on top of the .lookahead-risk color: the risk is about what
+// happens on the opponent's NEXT turn, not visible from the solution-count
+// suffix alone, so it needs its own explicit marker rather than relying on
+// color alone to carry the meaning.
+function formatQuestionLabel(entry) {
+  const prefix = entry.lookahead_risk ? "⚠️ " : "";
+  return `${prefix}${entry.label} — ${formatSolutionCounts(entry)}`;
+}
+
 function render(state) {
   // A null state means the request never reached the server; showError() has
   // already put the reason in the banner, so keep the last rendered view.
@@ -447,12 +456,18 @@ function render(state) {
   document.getElementById("exact-tag").textContent = race.exact ? "(exact)" : "(estimation)";
   const bestQuestionEl = document.getElementById("best-question");
   bestQuestionEl.textContent = race.best_question
-    ? `${race.best_question.label} — ${formatSolutionCounts(race.best_question)}`
+    ? formatQuestionLabel(race.best_question)
     : "(aucune)";
   // near_finish: at least one reachable answer to this question would bring
   // the solution count down to a handful -- flagged so the player notices a
   // question that could effectively close the game out.
   bestQuestionEl.classList.toggle("near-finish", !!(race.best_question && race.best_question.near_finish));
+  // lookahead_risk: this question's own reduction looks fine, but some of
+  // its branches would hand the opponent (whose turn is always next) a
+  // position with no safe question of their own -- only ever set in the
+  // heuristic regime (see _apply_lookahead_penalty), never alongside
+  // near_finish, which is exact-regime-only.
+  bestQuestionEl.classList.toggle("lookahead-risk", !!(race.best_question && race.best_question.lookahead_risk));
   const guessEl = document.getElementById("guess-now");
   guessEl.textContent = race.guess_now ? "OUI — proposez une solution !" : "Non, attendez.";
   guessEl.className = "guess-now " + (race.guess_now ? "guess-yes" : "guess-no");
@@ -461,8 +476,9 @@ function render(state) {
   altEl.innerHTML = "";
   for (const alt of race.ranked_alternatives.slice(0, MAX_ALTERNATIVES_SHOWN)) {
     const li = document.createElement("li");
-    li.textContent = `${alt.label} — ${formatSolutionCounts(alt)}`;
+    li.textContent = formatQuestionLabel(alt);
     if (alt.near_finish) li.classList.add("near-finish");
+    if (alt.lookahead_risk) li.classList.add("lookahead-risk");
     altEl.appendChild(li);
   }
 
