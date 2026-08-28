@@ -10,7 +10,10 @@
 <div id="error-banner" class="error-banner"></div>
 
 <div class="layout">
-  <div class="left">
+  <div class="col col-sums">
+    <h2>Chiffres</h2>
+    <div id="domains" class="domains-grid"></div>
+
     <h2>Sommes ligne</h2>
     <div class="chip-row" id="row-letters"></div>
     <div class="chip-row chip-row-values" id="row-values"></div>
@@ -18,28 +21,21 @@
     <h2>Sommes colonne</h2>
     <div class="chip-row" id="col-letters"></div>
     <div class="chip-row chip-row-values" id="col-values"></div>
+  </div>
 
+  <div class="col col-digits">
     <h2>Comparaisons</h2>
     <div class="cmp-grid" id="cmp-grid"></div>
 
     <h2>Parité &amp; segments</h2>
     <div class="pos-grid" id="pos-grid"></div>
-
-    <h2>Historique</h2>
-    <pre id="trace" class="trace-box"></pre>
-
-    <button id="undo-btn">Annuler (undo)</button>
-    <button id="reset-btn">Réinitialiser</button>
   </div>
 
-  <div class="right">
+  <div class="col col-advice">
     <div class="solutions-box">
       <strong>Solutions possibles :</strong> <span id="n-solutions"></span>
       <div id="solutions-list" class="solutions-list"></div>
     </div>
-
-    <h2>Chiffres</h2>
-    <div id="domains" class="domains-grid"></div>
 
     <div class="recommendation-box">
       <h2>🎯 Recommandation</h2>
@@ -59,6 +55,12 @@
         <button id="my-miss-btn">j'ai tenté celle-ci, raté</button>
       </div>
     </div>
+
+    <h2>Historique</h2>
+    <pre id="trace" class="trace-box"></pre>
+
+    <button id="undo-btn">Annuler (undo)</button>
+    <button id="reset-btn">Réinitialiser</button>
   </div>
 </div>
 
