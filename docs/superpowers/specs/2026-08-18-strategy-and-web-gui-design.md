@@ -269,3 +269,37 @@ aujourd'hui pour le CLI.
   couches additionnelles qui les réutilisent.
 - Le projet n'a pas de dépôt git à ce jour ; à décider séparément si on en
   initialise un avant de committer cette spec.
+
+## Évolution — 2026-08-28
+
+Deux ajouts pour améliorer les chances de victoire, sur la branche
+`race-aware-strategy` :
+
+1. **Confluence de la propagation.** `apply_no_equal_adjacent` et
+   `apply_max_two` ne taillaient que les domaines de taille > 1 : une
+   violation entre positions déjà réduites à des singletons par des
+   contraintes indépendantes n'était jamais détectée, et le résultat
+   dépendait de l'ordre de fixation des variables (comptes
+   `count_solutions_exact` ≠ `count_solutions_capped`, clé de mémo
+   techniquement non fondée). Les deux propagateurs vident maintenant un
+   domaine contributeur sur une violation « tout singleton », comme
+   `apply_total`. Le cœur de `solver.py` n'est donc plus tout à fait
+   « inchangé » — mais la correction ne fait que rendre `propagate()` plus
+   strict sur des états qui n'avaient de toute façon aucune solution réelle.
+
+2. **Palier intermédiaire « course beam ».** Entre le régime exact
+   (N ≤ `n_exact_max`) et l'heuristique 1-coup, un troisième palier fait
+   tourner la récursion alternée `_exact_value` avec un `beam_width` qui
+   limite chaque nœud interne à ses questions les plus prometteuses.
+   Affordable pour `n_exact_max < N ≤ n_beam_max` (défaut 12 en CLI, 9 en
+   web). `beam_width = 2` retrouve la question et le `p_win` du search
+   complet sur tous les plateaux N=3..9 testés, 20 à 40× plus vite.
+   `enumerate_all_questions` est mis en cache par signature de `clue` sur
+   toute la recherche ; les paliers partagent une seule échéance
+   wall-clock. Le résultat porte un drapeau `race_aware` (vrai pour exact
+   + beam, faux pour l'heuristique) que le CLI et le web affichent.
+
+Pistes non traitées ici (cf. échange du 2026-08-28) : rollouts
+Monte-Carlo race-aware pour N > `n_beam_max`, modèle d'adversaire explicite
+au-delà de la pénalité de lookahead, `p_win` de l'adversaire dans l'UI,
+exploitation de `evaluate_forcing_questions` (code mort).
