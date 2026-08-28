@@ -542,7 +542,7 @@ def evaluate_race_strategy(
     fallback_cap: int = 500,
     time_budget_s: float = 3.0,
     near_finish_threshold: int = 3,
-    n_beam_max: int = 9,
+    n_beam_max: int = 12,
     beam_width: int = 2,
 ) -> dict:
     """Recommend a move for the assisted player, as a dict with:

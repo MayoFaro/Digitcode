@@ -127,7 +127,13 @@ def create_app() -> Flask:
             state["a_me"],
             state["a_opp"],
             state["my_excluded"],
+            # Shorter deadline than strategy.py's CLI-tuned default, and a
+            # tighter beam ceiling to match: N up to 9 reliably completes the
+            # beam-limited race search inside ~1.1s, whereas N 10-12 would
+            # usually burn the whole budget only to fall back. A web request
+            # must not routinely stall for over a second.
             time_budget_s=1.5,
+            n_beam_max=9,
         )
         all_questions_by_label = {
             q["label"]: q for q in solver.enumerate_all_questions(state["clue"])
