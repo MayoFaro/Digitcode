@@ -127,10 +127,19 @@ _LOOKAHEAD_BEAM_WIDTH = 4
 _LOOKAHEAD_DANGER_PENALTY = 0.4
 
 
-def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_counter, node_budget, deadline):
+def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_counter, node_budget, deadline, beam_width=None, q_cache=None):
     # NOTE: the key deliberately omits `base_solver` -- see the limitation
     # documented on `_clue_signature` and at the memo dict in
     # `evaluate_race_strategy`.
+    #
+    # `beam_width`: when set, each node expands only its top-`beam_width`
+    # questions (ranked by a cheap proxy over the capped per-outcome counts)
+    # instead of all of them. This is what makes the alternating-turn recursion
+    # affordable above N_EXACT_MAX -- the value returned is then a race-aware
+    # ESTIMATE, not the exact game value (some lines of play are pruned), and
+    # `evaluate_race_strategy` reports it with "exact": False. The two
+    # terminal shortcuts above (a player out of attempts) still apply
+    # unconditionally, which is why they must not be left to the recursion.
     key = (_clue_signature(cur_clue), a_me_, a_opp_, excl_, mover)
     if key in memo:
         return memo[key]
@@ -178,10 +187,35 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         memo[key] = 0.0
         return 0.0
 
-    questions = [q for q in cur_solver.enumerate_all_questions(cur_clue) if len(q["outcomes"]) > 1]
+    # `enumerate_all_questions` is the dominant per-node cost (a capped DFS
+    # count per reachable answer). Cache it by clue signature: the wait/guess
+    # recursion frequently re-enters the same clue with different attempt
+    # counts, and the result depends only on the propagated domains (same
+    # confluence assumption as the memo).
+    if q_cache is not None:
+        all_qs = q_cache.get(key[0])
+        if all_qs is None:
+            all_qs = cur_solver.enumerate_all_questions(cur_clue)
+            q_cache[key[0]] = all_qs
+    else:
+        all_qs = cur_solver.enumerate_all_questions(cur_clue)
+    questions = [q for q in all_qs if len(q["outcomes"]) > 1]
+
+    if beam_width is not None and len(questions) > beam_width:
+        # Prune to the most promising questions BEFORE the costly
+        # `_question_branches` pass, using only the capped per-outcome counts
+        # `enumerate_all_questions` already computed: prefer questions with
+        # more answers that collapse to <=2 solutions (decisive), then finer
+        # partitions. A cheap proxy, deliberately -- the branch counts and
+        # the recursion refine the ranking among the survivors.
+        def _cheap_rank(q):
+            outs = q["outcomes"]
+            decisive = sum(1 for o in outs if o["n"] is not None and 1 <= o["n"] <= 2)
+            return (-decisive, -len(outs))
+        questions = sorted(questions, key=_cheap_rank)[:beam_width]
 
     def recurse(clue_, a_me2, a_opp2, excl2, mover2, solver2):
-        return _exact_value(clue_, a_me2, a_opp2, excl2, mover2, solver2, memo, node_counter, node_budget, deadline)
+        return _exact_value(clue_, a_me2, a_opp2, excl2, mover2, solver2, memo, node_counter, node_budget, deadline, beam_width, q_cache)
 
     if not questions:
         if mover == "me":
@@ -199,14 +233,12 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         memo[key] = result
         return result
 
+    # Weights are normalized by each question's OWN branch-count sum, not by
+    # the parent's `n`. Sum(n_ans) != n in general (see `_question_branches`
+    # and `_clue_signature`): dividing by `n` produced weights summing above
+    # 1 and p_win > 1.
     best = None
     for q in questions:
-        # Weights are normalized by this question's OWN branch-count sum, not
-        # by the parent's `n`. Sum(n_ans) != n in general: solver.py's
-        # singleton-guard gap makes counts depend on the order positions get
-        # fixed, which differs between parent and child enumerations (measured:
-        # a parent counting 4 with branches counting 1+4+1=6). Dividing by `n`
-        # produced probability weights summing above 1 and p_win > 1.
         branches = _question_branches(cur_solver, cur_clue, q, excluded=excl_)
         sum_n_ans = sum(b[2] for b in branches)
         if sum_n_ans == 0:
@@ -316,7 +348,7 @@ def _heuristic_fallback(
     both, so a ruled-out candidate doesn't inflate the score against."""
     def _no_info() -> dict:
         return {
-            "p_win": 0.5, "exact": False, "best_question": None,
+            "p_win": 0.5, "exact": False, "race_aware": False, "best_question": None,
             "guess_now": a_me > 0 and 0 < n_gate <= 2, "ranked_alternatives": [],
         }
 
@@ -371,9 +403,11 @@ def _heuristic_fallback(
     return {
         # Not a calibrated win probability in this regime -- a bounded
         # reduction-quality proxy (1 - normalized score), consistent with
-        # "exact": False signaling the estimate is approximate.
+        # "exact": False and "race_aware": False signaling the estimate is
+        # a 1-ply information score, not a modelled win probability.
         "p_win": 1.0 - best_score,
         "exact": False,
+        "race_aware": False,
         # near_finish is deliberately always False here: computing it would
         # need the same per-branch exact counts the "exact" regime already
         # has for free, but the fallback regime is exactly where those counts
@@ -393,6 +427,110 @@ def _heuristic_fallback(
     }
 
 
+def _race_search(
+    solver: DigitcodeSolver,
+    clue: Clue,
+    a_me: int,
+    a_opp: int,
+    my_excluded: FrozenSet[Candidate],
+    questions: list,
+    n: int,
+    near_finish_threshold: int,
+    node_budget: int,
+    deadline: float,
+    beam_width: Optional[int],
+) -> dict:
+    """Alternating-turn expectimax over the race, ranking every top-level
+    question by the resulting win probability.
+
+    `beam_width=None` runs the full search -- the returned `p_win` is then
+    the exact game value under optimal play and `"exact"` is True. An int
+    prunes each *interior* node to its top `beam_width` questions (see
+    `_exact_value`), which makes the search affordable well above
+    `n_exact_max` at the cost of turning `p_win` into a race-aware estimate
+    (`"exact"` False); the top-level ranking below still considers all
+    questions so the alternatives list stays complete.
+
+    Raises `_BudgetExceeded` if the node or wall-clock budget runs out --
+    the caller drops to the heuristic (or, from the exact tier, to a
+    beam-limited retry).
+
+    KNOWN LIMITATION: the `_exact_value` memo key omits `base_solver`,
+    although the result depends on it through `_solver_for`. This is sound
+    only if propagation is confluent; solver.py now rejects the
+    all-singleton violations that were the main gap (see `_clue_signature`),
+    and the memo is per-call anyway, bounding any residual impact to one
+    evaluation.
+    """
+    memo: Dict[tuple, float] = {}
+    q_cache: Dict[tuple, list] = {}
+    node_counter = [0]
+    exact = beam_width is None
+
+    if beam_width is not None and len(questions) > 2 * beam_width:
+        # Same cheap proxy as `_exact_value`'s interior pruning: rank the
+        # top-level candidates by their capped per-outcome counts and keep a
+        # generous slice for full race evaluation. The dropped tail is what
+        # the cheap heuristic already considers clearly weaker, and the UI
+        # only surfaces the first handful of alternatives anyway.
+        def _cheap_rank(q):
+            outs = q["outcomes"]
+            decisive = sum(1 for o in outs if o["n"] is not None and 1 <= o["n"] <= 2)
+            return (-decisive, -len(outs))
+        questions = sorted(questions, key=_cheap_rank)[:max(2 * beam_width, 12)]
+
+    ranked = []
+    for q in questions:
+        # Normalized by this question's own branch-count sum, not by `n` --
+        # see `_question_branches` and `_clue_signature`.
+        branches = _question_branches(solver, clue, q, excluded=my_excluded)
+        sum_n_ans = sum(b[2] for b in branches)
+        if sum_n_ans == 0:
+            continue
+        # A question is "near finish" if at least one reachable answer would
+        # bring the solution count down to the threshold or below -- an
+        # "opportunity" reading (matches the project's existing "opportunités
+        # pouvant tomber à ≤N" vocabulary), not a guarantee.
+        near_finish = any(n_ans <= near_finish_threshold for _, _, n_ans in branches)
+        total = 0.0
+        for child_clue, child_solver, n_ans in branches:
+            p = n_ans / sum_n_ans
+            wait_val = _exact_value(child_clue, a_me, a_opp, my_excluded, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache)
+            gv = _best_guess_value(
+                child_solver, child_clue, n_ans, a_me, my_excluded, 1.0,
+                lambda ne, cc=child_clue: _exact_value(cc, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache),
+            )
+            outcome_val = max(wait_val, gv) if gv is not None else wait_val
+            total += p * outcome_val
+        ranked.append((total, q, near_finish))
+    ranked.sort(key=lambda t: -t[0])
+
+    direct_guess = _best_guess_value(
+        solver, clue, n, a_me, my_excluded, 1.0,
+        lambda ne: _exact_value(clue, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache),
+    )
+
+    if not ranked:
+        return {
+            "p_win": direct_guess if direct_guess is not None else 0.0,
+            "exact": exact, "race_aware": True, "best_question": None,
+            "guess_now": direct_guess is not None, "ranked_alternatives": [],
+        }
+
+    best_val, best_q, best_near_finish = ranked[0]
+    guess_now = direct_guess is not None and direct_guess >= best_val
+    return {
+        "p_win": max(best_val, direct_guess) if direct_guess is not None else best_val,
+        "exact": exact,
+        "race_aware": True,
+        "best_question": {"qtype": best_q["qtype"], "label": best_q["label"], "near_finish": best_near_finish},
+        "guess_now": guess_now,
+        "ranked_alternatives": [
+            {"qtype": q["qtype"], "label": q["label"], "p_win": v, "near_finish": nf} for v, q, nf in ranked[1:]
+        ],
+    }
+
+
 def evaluate_race_strategy(
     solver: DigitcodeSolver,
     clue: Clue,
@@ -404,78 +542,48 @@ def evaluate_race_strategy(
     fallback_cap: int = 500,
     time_budget_s: float = 3.0,
     near_finish_threshold: int = 3,
+    n_beam_max: int = 9,
+    beam_width: int = 2,
 ) -> dict:
+    """Recommend a move for the assisted player, as a dict with:
+
+    - 'p_win': my probability of winning under the model.
+    - 'exact': True only when the full alternating-turn search ran (N small
+      enough, budget not exceeded) -- 'p_win' is then the exact game value.
+    - 'race_aware': True when 'p_win' is a modelled win probability (the
+      exact search OR the beam-limited race search); False when it is the
+      1-ply information-gain proxy of the heuristic fallback.
+    - 'best_question', 'ranked_alternatives', 'guess_now'.
+
+    Three tiers, strongest affordable first: exact search for N <=
+    `n_exact_max`; a beam-limited race search (each interior node keeps its
+    top `beam_width` questions) for N <= `n_beam_max`; otherwise the
+    heuristic. `time_budget_s` bounds the total wall-clock cost -- a tier
+    that overruns it degrades to the next one.
+    """
     # Candidates I've already tried and failed on are gone regardless of
-    # regime: subtracting them here keeps the exact/fallback gate, and every
-    # count derived from `n` below, consistent with what's actually still
-    # possible.
-    n = solver.count_solutions_exact(clue, cap=n_exact_max + 1, excluded=my_excluded)
+    # regime: subtracting them here keeps the tier gate, and every count
+    # derived from `n` below, consistent with what's actually still possible.
+    # Capped at n_beam_max + 1 -- enough to place the board in a tier without
+    # paying for an exact count on a wide-open board.
+    n = solver.count_solutions_exact(clue, cap=n_beam_max + 1, excluded=my_excluded)
     questions = [q for q in solver.enumerate_all_questions(clue) if len(q["outcomes"]) > 1]
 
-    if 0 < n <= n_exact_max:
-        # KNOWN LIMITATION: the memo key omits `base_solver`, although
-        # `_exact_value`'s result depends on it through `_solver_for`. That is
-        # only sound if propagation is confluent, which solver.py's
-        # singleton-guard gap can violate (see `_clue_signature`). Fixing it
-        # properly would mean either touching solver.py or keying the memo on
-        # more state; neither is done here. The memo being per-call (a fresh
-        # dict every invocation) bounds the practical impact to a single
-        # evaluation. Documented, not fixed.
-        memo: Dict[tuple, float] = {}
-        node_counter = [0]
+    if 0 < n <= n_beam_max:
+        # Try the strongest affordable search first, then degrade: full exact
+        # (only when small enough), then beam-limited race-aware, then -- via
+        # the fall-through below -- the 1-ply heuristic. All tiers share one
+        # wall-clock deadline so a slow exact attempt cannot make the total
+        # latency a multiple of `time_budget_s`.
         deadline = time.monotonic() + time_budget_s
-        try:
-            ranked = []
-            for q in questions:
-                # Normalized by this question's own branch-count sum, not by
-                # `n` -- see `_question_branches` and `_clue_signature`.
-                branches = _question_branches(solver, clue, q, excluded=my_excluded)
-                sum_n_ans = sum(b[2] for b in branches)
-                if sum_n_ans == 0:
-                    continue
-                # A question is "near finish" if at least one reachable answer
-                # would bring the solution count down to the threshold or
-                # below -- an "opportunity" reading (matches the project's
-                # existing "opportunités pouvant tomber à ≤N" vocabulary),
-                # not a "every answer closes the game" guarantee.
-                near_finish = any(n_ans <= near_finish_threshold for _, _, n_ans in branches)
-                total = 0.0
-                for child_clue, child_solver, n_ans in branches:
-                    p = n_ans / sum_n_ans
-                    wait_val = _exact_value(child_clue, a_me, a_opp, my_excluded, "opp", solver, memo, node_counter, node_budget, deadline)
-                    gv = _best_guess_value(
-                        child_solver, child_clue, n_ans, a_me, my_excluded, 1.0,
-                        lambda ne, cc=child_clue, cs=solver: _exact_value(cc, a_me - 1, a_opp, ne, "opp", cs, memo, node_counter, node_budget, deadline),
-                    )
-                    outcome_val = max(wait_val, gv) if gv is not None else wait_val
-                    total += p * outcome_val
-                ranked.append((total, q, near_finish))
-            ranked.sort(key=lambda t: -t[0])
-
-            direct_guess = _best_guess_value(
-                solver, clue, n, a_me, my_excluded, 1.0,
-                lambda ne: _exact_value(clue, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline),
-            )
-
-            if not ranked:
-                return {
-                    "p_win": direct_guess if direct_guess is not None else 0.0,
-                    "exact": True, "best_question": None,
-                    "guess_now": direct_guess is not None, "ranked_alternatives": [],
-                }
-
-            best_val, best_q, best_near_finish = ranked[0]
-            guess_now = direct_guess is not None and direct_guess >= best_val
-            return {
-                "p_win": max(best_val, direct_guess) if direct_guess is not None else best_val,
-                "exact": True,
-                "best_question": {"qtype": best_q["qtype"], "label": best_q["label"], "near_finish": best_near_finish},
-                "guess_now": guess_now,
-                "ranked_alternatives": [
-                    {"qtype": q["qtype"], "label": q["label"], "p_win": v, "near_finish": nf} for v, q, nf in ranked[1:]
-                ],
-            }
-        except _BudgetExceeded:
-            pass
+        tiers = ([None] if n <= n_exact_max else []) + [beam_width]
+        for bw in tiers:
+            try:
+                return _race_search(
+                    solver, clue, a_me, a_opp, my_excluded, questions, n,
+                    near_finish_threshold, node_budget, deadline, bw,
+                )
+            except _BudgetExceeded:
+                continue
 
     return _heuristic_fallback(solver, clue, questions, n, a_me, fallback_cap, my_excluded)

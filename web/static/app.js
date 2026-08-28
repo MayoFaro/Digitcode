@@ -163,12 +163,6 @@ function findStoredComparison(comparisons, left, right) {
   return null;
 }
 
-function relationLabel(rel) {
-  if (rel === ">") return ">";
-  if (rel === "<") return "<";
-  return "?";
-}
-
 function renderComparisons(state) {
   const container = document.getElementById("cmp-grid");
   container.innerHTML = "";
@@ -187,28 +181,30 @@ function renderComparisons(state) {
     return span;
   };
 
+  // One adjacent pair gets two selectors, "<" and ">". First tap on one
+  // sets that relation (and replaces the opposite if it was active -- the
+  // backend swaps a pair's comparison in place). Tapping the already-active
+  // selector again clears the constraint. A contradiction with the current
+  // board comes back as an error banner, not a silent fallback.
   const connectorNode = (left, right) => {
     const rel = currentRelation(state.comparisons, left, right);
-    return makeChip(relationLabel(rel), { extraClass: "cmp-chip" }, () => {
-      const removeAttempt = () => {
+    const group = document.createElement("span");
+    group.className = "cmp-pair";
+
+    const relChip = (want) => makeChip(want, { selected: rel === want }, () => {
+      let body;
+      if (rel === want) {
         const stored = findStoredComparison(state.comparisons, left, right);
-        return { type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true };
-      };
-      let attempts;
-      if (rel === null) {
-        // Try ">" first; if that's a contradiction given the current board,
-        // fall through to "<" instead of getting stuck.
-        attempts = [
-          { type: "comparison", left, rel: ">", right },
-          { type: "comparison", left, rel: "<", right },
-        ];
-      } else if (rel === ">") {
-        attempts = [{ type: "comparison", left, rel: "<", right }, removeAttempt()];
+        body = { type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true };
       } else {
-        attempts = [removeAttempt()];
+        body = { type: "comparison", left, rel: want, right };
       }
-      runMutation(() => postClueWithFallback(attempts));
+      runMutation(() => postClue(body));
     });
+
+    group.appendChild(relChip("<"));
+    group.appendChild(relChip(">"));
+    return group;
   };
 
   cell(1, 1, letterNode("T"));
@@ -449,11 +445,15 @@ function render(state) {
   });
 
   const race = state.race;
-  // Outside the exact regime the score is NOT a calibrated win probability but
-  // a reduction-quality indicator (same distinction as cli.py's show_race).
-  document.getElementById("p-win-label").textContent = race.exact ? "P(je gagne)" : "Qualité de réduction";
+  // race_aware covers both the exact search and the beam-limited race search:
+  // in both, p_win is a modelled win probability. Only the pure heuristic
+  // fallback (race_aware false) reports a 1-ply reduction-quality score
+  // instead (same distinction as cli.py's show_race).
+  const raceAware = race.race_aware === undefined ? race.exact : race.race_aware;
+  document.getElementById("p-win-label").textContent = raceAware ? "P(je gagne)" : "Qualité de réduction";
   document.getElementById("p-win").textContent = (race.p_win * 100).toFixed(1) + "%";
-  document.getElementById("exact-tag").textContent = race.exact ? "(exact)" : "(estimation)";
+  document.getElementById("exact-tag").textContent =
+    race.exact ? "(exact)" : raceAware ? "(estimation course)" : "(estimation)";
   const bestQuestionEl = document.getElementById("best-question");
   bestQuestionEl.textContent = race.best_question
     ? formatQuestionLabel(race.best_question)

@@ -520,6 +520,61 @@ def test_evaluate_race_strategy_probabilities_stay_within_zero_one_with_exclusio
     assert_probabilities(res, "N=4 with 2 of 4 excluded")
 
 
+# --- beam-limited race tier (n_exact_max < N <= n_beam_max) ----------------
+
+
+def test_beam_tier_is_race_aware_but_not_exact():
+    # N=9: above n_exact_max (no full search) but at/below n_beam_max, so the
+    # beam-limited alternating-turn search runs. Its p_win is a modelled win
+    # probability (race_aware) even though it is not the exact game value.
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})
+    assert s.count_solutions_exact(Clue(), cap=50) == 9
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["exact"] is False
+    assert res["race_aware"] is True
+    assert 0.0 <= res["p_win"] <= 1.0
+    assert res["best_question"] is not None
+    p_wins = [res["p_win"]] + [a["p_win"] for a in res["ranked_alternatives"]]
+    assert p_wins == sorted(p_wins, reverse=True)
+
+
+def test_beam_tier_honours_the_out_of_attempts_terminal_shortcut():
+    # The opponent has no attempts left: they can never declare first, so the
+    # beam search must still resolve to a certain win regardless of how many
+    # lines of play its beam prunes away.
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})  # N=9 -> beam tier
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=0)
+    assert res["exact"] is False and res["race_aware"] is True
+    assert res["p_win"] == 1.0
+
+
+def test_beam_tier_degrades_to_heuristic_when_the_budget_is_gone():
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})  # N=9 -> beam tier
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2, time_budget_s=-1.0)
+    assert res["exact"] is False
+    assert res["race_aware"] is False  # heuristic fallback
+
+
+def test_above_n_beam_max_uses_the_heuristic_not_the_race_search():
+    s = make_solver({"U": {2, 4}, "X": {5, 6, 7}, "Y": {1, 2, 3}})  # N well above 9
+    assert s.count_solutions_exact(Clue(), cap=50) > 9
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2)
+    assert res["race_aware"] is False
+
+
+def test_beam_tier_stays_within_the_web_time_budget():
+    # Regression guard for interactive latency: the beam tier must return
+    # (or cleanly degrade) well inside the 1.5s the web backend allows.
+    import time
+
+    s = make_solver({"X": {5, 6, 7}, "Y": {1, 2, 3}})  # N=9
+    t0 = time.monotonic()
+    res = evaluate_race_strategy(s, Clue(), a_me=2, a_opp=2, time_budget_s=1.5)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 2.5, f"beam tier took {elapsed:.2f}s"
+    assert_probabilities(res, "beam tier")
+
+
 def test_near_finish_always_false_in_the_fallback_regime():
     s = DigitcodeSolver()
     s.propagate(Clue())

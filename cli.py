@@ -115,18 +115,24 @@ def _format_pct(x: float) -> str:
 
 def show_race(s: DigitcodeSolver, clue: Clue, a_me: int, a_opp: int, my_excluded: frozenset) -> None:
     res = evaluate_race_strategy(s, clue, a_me, a_opp, my_excluded)
-    tag = "exact" if res["exact"] else "estimation (N trop grand)"
-    # Hors du régime exact, le score n'est PAS une probabilité de victoire
-    # calibrée mais un indicateur de qualité de réduction : ne pas l'afficher
-    # comme un P(gagner).
-    score_label = "P(je gagne)" if res["exact"] else "Qualité de réduction"
+    race_aware = res.get("race_aware", res["exact"])
+    if res["exact"]:
+        tag = "exact"
+    elif race_aware:
+        tag = "estimation course (beam)"
+    else:
+        tag = "estimation réduction (N trop grand)"
+    # Seul le régime "réduction" n'est PAS une probabilité de victoire : c'est
+    # un indicateur de qualité de réduction 1-coup. Les régimes exact et beam
+    # renvoient bien une probabilité de victoire modélisée.
+    score_label = "P(je gagne)" if race_aware else "Qualité de réduction"
     print(f"🎲 Stratégie de course [{tag}] — essais: moi {a_me}/2, adversaire {a_opp}/2")
     print(f"   {score_label} = {_format_pct(res['p_win'])}")
     if res["guess_now"]:
         print("   -> PROPOSER UNE SOLUTION MAINTENANT.")
     if res["best_question"] is not None:
         print(f"   Meilleure question : {res['best_question']['label']}")
-    alt_label = "P(gagner)" if res["exact"] else "réduction"
+    alt_label = "P(gagner)" if race_aware else "réduction"
     for alt in res["ranked_alternatives"][:5]:
         print(f"     · {alt['label']} — {alt_label}={_format_pct(alt['p_win'])}")
 
