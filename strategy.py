@@ -11,15 +11,16 @@ Candidate = Tuple[int, int, int, int, int, int]
 def _clue_signature(clue: Clue) -> tuple:
     """Identifies a Clue by its posted constraints only.
 
-    KNOWN LIMITATION: used as (part of) the memo key in `_exact_value`, this
-    assumes constraint propagation is confluent -- that the same Clue always
-    yields the same fixed point regardless of which solver state it was
-    reached from. That is not reliably true: `solver.py`'s
-    `apply_no_equal_adjacent` / `apply_max_two` only prune values out of
-    domains with len() > 1, so a violation between two positions that were
-    already pinned to singletons by independent constraints is never caught,
-    and whether that happens depends on the order positions get fixed. See
-    the note at the memo dict in `evaluate_race_strategy`.
+    Used as (part of) the memo key in `_exact_value`, this assumes constraint
+    propagation is confluent -- that the same Clue always yields the same
+    fixed point regardless of which solver state it was reached from.
+    `solver.py`'s `apply_no_equal_adjacent` / `apply_max_two` now reject the
+    all-singleton violations that used to slip through their len() > 1 guard,
+    which closes the main source of non-confluence. Weights are still
+    normalized per question (not by the parent count) as a defensive measure
+    -- other propagators (comparisons, totals) have not been audited for
+    order-independence. See the note at the memo dict in
+    `evaluate_race_strategy`.
     """
     return (
         tuple(sorted(clue.row_totals.items())),

@@ -89,6 +89,20 @@ class DigitcodeSolver:
     def apply_no_equal_adjacent(self) -> bool:
         changed = False
         for a, b in ADJACENT:
+            # Both sides already pinned to the same value: neither branch
+            # below fires (each only prunes a domain of len > 1), so the
+            # violation would go uncaught and propagate() would converge as
+            # if the board were consistent. Empty one side so the post-loop
+            # "domaine vide" check rejects the clue -- same defensive pattern
+            # as apply_total. Without this, whether an equal-adjacent pair is
+            # caught depends on the order positions get fixed during
+            # enumeration, so solution counts stop being confluent (see the
+            # note on strategy.py's _clue_signature).
+            if (len(self.domains[a]) == 1 and self.domains[a] == self.domains[b]):
+                v = next(iter(self.domains[a]))
+                self.log(f"[≠ voisins {a}-{b}] contradiction : {a}={b}={v}")
+                self.domains[b] = set()
+                return True
             if len(self.domains[a]) == 1:
                 v = next(iter(self.domains[a]))
                 if v in self.domains[b] and len(self.domains[b]) > 1:
@@ -112,6 +126,18 @@ class DigitcodeSolver:
             if len(self.domains[p]) == 1:
                 v = next(iter(self.domains[p])); fixed[v] = fixed.get(v, 0) + 1
         for v, k in fixed.items():
+            if k >= 3:
+                # Three or more positions independently pinned to the same
+                # value: the k >= 2 branch below only prunes domains of
+                # len > 1, so an all-singleton violation was never rejected
+                # and, like apply_no_equal_adjacent's gap, made counts
+                # non-confluent. Empty one contributing domain so propagate()
+                # raises.
+                for p in POSITIONS:
+                    if self.domains[p] == {v}:
+                        self.log(f"[≤2 occurrences] contradiction : {v} fixé {k} fois")
+                        self.domains[p] = set()
+                        return True
             if k >= 2:
                 for p in POSITIONS:
                     if len(self.domains[p]) > 1 and v in self.domains[p]:

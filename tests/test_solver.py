@@ -106,6 +106,54 @@ def test_count_solutions_capped_zero_on_contradiction():
     assert s.count_solutions_capped(clue) == 0
 
 
+def test_propagate_rejects_two_equal_adjacent_singletons():
+    """apply_no_equal_adjacent used to prune the offending value only from a
+    domain of len > 1, so two positions independently pinned to the SAME
+    value by other constraints slipped through uncaught -- and whether that
+    happened depended on the order positions got fixed during enumeration,
+    making solution counts non-confluent (see strategy.py's _clue_signature
+    note). T and U are adjacent and both pinned to 5: a contradiction."""
+    s = DigitcodeSolver()
+    s.domains = {"T": {5}, "U": {5}, "V": {1}, "W": {2}, "X": {3}, "Y": {4}}
+    with pytest.raises(ValueError):
+        s.propagate(Clue())
+
+
+def test_propagate_rejects_three_equal_singletons():
+    """apply_max_two used to prune a third occurrence only from a domain of
+    len > 1; three positions all pinned to the same value by independent
+    constraints were never rejected. T, V and X are pairwise non-adjacent
+    and all pinned to 5 -- violates the max-two-occurrences rule."""
+    s = DigitcodeSolver()
+    s.domains = {"T": {5}, "U": {1}, "V": {5}, "W": {2}, "X": {5}, "Y": {4}}
+    with pytest.raises(ValueError):
+        s.propagate(Clue())
+
+
+def test_propagate_allows_two_equal_non_adjacent_singletons():
+    """The max-two rule permits exactly two occurrences; T and V are not
+    adjacent, so T=V=5 is legal and must not be rejected."""
+    s = DigitcodeSolver()
+    s.domains = {"T": {5}, "U": {1}, "V": {5}, "W": {2}, "X": {3}, "Y": {4}}
+    s.propagate(Clue())
+    assert s.domains["T"] == {5} and s.domains["V"] == {5}
+
+
+@pytest.mark.parametrize("free", [
+    {"X": {5, 6, 7}, "Y": {1, 2, 3}},
+    {"Y": {7, 8, 9}},
+    {"U": {2, 4}, "X": {6, 7}, "Y": {8, 9}},
+])
+def test_exact_and_capped_solution_counts_agree(free):
+    """With the singleton-guard gap closed, the DFS-with-re-propagation
+    counter and the direct combination-checking counter must return the
+    same total -- the divergence documented on strategy.py's
+    _clue_signature is what forced per-question weight normalization."""
+    s = make_solver(free)
+    clue = Clue()
+    assert s.count_solutions_exact(clue, cap=None) == s.count_solutions_capped(clue, cap=None)
+
+
 def test_propagate_rejects_a_row_and_col_total_combination_unreachable_together():
     """apply_total used to silently return when a target fell outside the
     current [glob_min, glob_max] range instead of emptying a domain, so
