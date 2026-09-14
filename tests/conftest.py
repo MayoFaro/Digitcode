@@ -1,6 +1,21 @@
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import random
 
+import pytest
+
 from digitcode.solver import DigitcodeSolver, Clue
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Session-scoped QApplication for native Qt widget tests. Offscreen
+    platform is forced above, before PySide6 is ever imported, so this
+    works in a headless CI/dev environment with no X server."""
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    yield app
 
 
 def make_solver(free_positions: dict, tries: int = 500) -> DigitcodeSolver:

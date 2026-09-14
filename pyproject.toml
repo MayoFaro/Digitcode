@@ -12,9 +12,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+native = ["PySide6>=6.5"]
 
 [tool.setuptools]
-packages = ["digitcode", "digitcode.web"]
+packages = ["digitcode", "digitcode.web", "digitcode.native", "digitcode.native.panels", "digitcode.native.widgets"]
 package-dir = {"digitcode" = "."}
 
 [tool.pytest.ini_options]

@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import sys
+from typing import Callable
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ..game_state import GameState
+
+WINDOW_WIDTH = 380
+
+# Order matches the spec's volet 1/2/3 mapping of the web layout's
+# col-sums / col-digits / col-advice blocks.
+TAB_TITLES = ["Chiffres", "Comparaisons", "Solutions"]
+
+
+class MainWindow(QMainWindow):
+    def __init__(self, game_state: GameState | None = None) -> None:
+        super().__init__()
+        self.game_state = game_state or GameState()
+
+        self.setWindowTitle("Digitcode")
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.setFixedWidth(WINDOW_WIDTH)
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet(
+            "background: #fdd; color: #900; padding: 4px; border-radius: 4px;"
+        )
+        self.error_label.setWordWrap(True)
+        self.error_label.hide()
+        layout.addWidget(self.error_label)
+
+        tabs_row = QHBoxLayout()
+        self.tab_buttons: list[QPushButton] = []
+        self.tab_group = QButtonGroup(self)
+        self.tab_group.setExclusive(True)
+        for i, title in enumerate(TAB_TITLES):
+            btn = QPushButton(title)
+            btn.setCheckable(True)
+            self.tab_group.addButton(btn, i)
+            tabs_row.addWidget(btn)
+            self.tab_buttons.append(btn)
+        self.tab_buttons[0].setChecked(True)
+        self.tab_group.idClicked.connect(self._on_tab_clicked)
+        layout.addLayout(tabs_row)
+
+        self.solutions_label = QLabel()
+        layout.addWidget(self.solutions_label)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+        # Real panels are wired in by Task 8; placeholders keep this shell
+        # independently testable in the meantime.
+        self.panels: list[QWidget] = []
+        for _ in TAB_TITLES:
+            self.stack.addWidget(QWidget())
+
+        self._run(self.game_state.payload)
+
+    def _on_tab_clicked(self, index: int) -> None:
+        self.stack.setCurrentIndex(index)
+
+    def _run(self, fn: Callable[[], dict]) -> None:
+        """Apply one GameState mutation (or a plain payload() refresh) and
+        re-render. Disables the window and forces a repaint first so the
+        "busy" state is visible even though the call itself is synchronous
+        (see the design spec: race-strategy computation can take up to
+        ~1.5s, same budget the web app uses)."""
+        self.centralWidget().setEnabled(False)
+        QApplication.processEvents()
+        try:
+            payload = fn()
+        except ValueError as e:
+            self.error_label.setText("⚠️ " + str(e))
+            self.error_label.show()
+            self.centralWidget().setEnabled(True)
+            return
+        self.error_label.hide()
+        self.centralWidget().setEnabled(True)
+        self._render(payload)
+
+    def _render(self, payload: dict) -> None:
+        self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")
+        for panel in self.panels:
+            panel.refresh(payload)
+
+
+def run() -> None:
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
