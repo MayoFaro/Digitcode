@@ -12,9 +12,16 @@ class ChipButton(QPushButton):
     (web/static/style.css) -- pure display, no cycling logic of its own.
     """
 
+    # min-width/min-height matter for single-character labels like "<"/">":
+    # a button narrower than roughly 2x border-radius lets the rounded
+    # corners eat the entire content rect under Qt's stylesheet-based
+    # QPushButton painting, rendering the glyph invisible even though it's
+    # still technically drawn -- reproduced on a real display, not just a
+    # headless/offscreen rendering artifact.
     _BASE_STYLE = (
         "QPushButton {"
         " border: 1px solid #bbb; border-radius: 12px; padding: 3px 9px;"
+        " min-width: 22px; min-height: 20px;"
         " background: #fff; color: #333; }"
         "QPushButton:hover { border-color: #888; }"
     )
