@@ -86,7 +86,12 @@ class MainWindow(QMainWindow):
         re-render. Disables the window and forces a repaint first so the
         "busy" state is visible even though the call itself is synchronous
         (see the design spec: race-strategy computation can take up to
-        ~1.5s, same budget the web app uses)."""
+        ~1.5s, same budget the web app uses). Drains the event queue before
+        re-enabling so clicks made while disabled are dropped, not replayed
+        -- matching the web's runMutation, which deliberately ignores input
+        that arrives while a request is in flight. try/finally guarantees
+        the window can never be left permanently disabled, even if fn()
+        raises something other than ValueError."""
         self.centralWidget().setEnabled(False)
         QApplication.processEvents()
         try:
@@ -94,11 +99,17 @@ class MainWindow(QMainWindow):
         except ValueError as e:
             self.error_label.setText("⚠️ " + str(e))
             self.error_label.show()
-            self.centralWidget().setEnabled(True)
             return
-        self.error_label.hide()
-        self.centralWidget().setEnabled(True)
-        self._render(payload)
+        except Exception as e:
+            self.error_label.setText(f"⚠️ Erreur inattendue : {e}")
+            self.error_label.show()
+            raise
+        else:
+            self.error_label.hide()
+            self._render(payload)
+        finally:
+            QApplication.processEvents()
+            self.centralWidget().setEnabled(True)
 
     def _render(self, payload: dict) -> None:
         self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")

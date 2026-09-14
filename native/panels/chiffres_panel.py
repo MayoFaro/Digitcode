@@ -50,10 +50,22 @@ class ChiffresPanel(QWidget):
         layout.addStretch(1)
 
     def _clear_layout(self, layout) -> None:
+        # Unparent immediately so the widget stops painting right away --
+        # deleteLater() alone leaves it parented (and visible) until the
+        # event loop next processes deferred deletes, which transiently
+        # renders orphaned chips overlapping freshly-created ones when
+        # refresh() runs twice in a row with no intervening
+        # processEvents() (seen in the task-8 QA screenshot's chip-row
+        # artifacts). Still call deleteLater() rather than deleting
+        # synchronously: the widget being removed is sometimes the one
+        # whose own `clicked` handler is still executing (see the lambdas
+        # in _render_letters/_render_values), which must not be destroyed
+        # out from under itself mid-handler.
         while layout.count():
             item = layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.setParent(None)
                 widget.deleteLater()
 
     def _render_letters(self, layout, letters, totals, selected, on_select) -> None:

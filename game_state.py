@@ -8,9 +8,29 @@ from .strategy import evaluate_race_strategy
 # reachable answer could leave). Must stay a lower bound, never a fabricated
 # exact number -- see _question_solution_counts. Independent of strategy.py's
 # own fallback_cap: this one is tuned for UI latency on the handful of
-# questions actually rendered, not for scoring the full question set.
+# questions actually rendered, not for scoring the full question set. Must
+# match web/static/app.js's MAX_ALTERNATIVES_SHOWN (how many alternatives
+# get counts computed at all) -- and, since the native app was added, also
+# native/panels/solutions_panel.py's own MAX_ALTERNATIVES_SHOWN = 10. That's
+# three independent copies of the same constant (this module, app.js, and
+# solutions_panel.py); all three must stay in sync by hand.
 RANGE_DISPLAY_CAP = 2000
 MAX_ALTERNATIVES_WITH_RANGE = 10
+
+# Race-strategy compute budget used by payload() below. Shorter deadline
+# than strategy.py's CLI-tuned default (3.0s), and a tighter beam ceiling to
+# match: N up to 9 reliably completes the beam-limited race search inside
+# ~1.1s, whereas N 10-12 would usually burn the whole budget only to fall
+# back. Both the web and native UIs are interactive surfaces that must not
+# routinely stall for over a second, unlike the CLI. Commit 9d5be82
+# deliberately raised the CLI's own beam ceiling to N=12 while holding these
+# two numbers lower for latency reasons -- do not "fix" the discrepancy by
+# unifying them. A future desktop-specific tuning could afford to raise
+# these (the native window is a local always-on-top companion, not a
+# request/response server), but that would be a deliberate change to this
+# shared logic path's callers, not a bug.
+RACE_TIME_BUDGET_S = 1.5
+RACE_N_BEAM_MAX = 9
 
 _REQUIRED_FIELDS_BY_TYPE = {
     "row_total": ("row",),
@@ -28,9 +48,11 @@ def _display_domains(snap: dict, sols: list, n_solutions_total: int) -> dict:
     actually reachable: `solver.py`'s `apply_no_equal_adjacent` /
     `apply_max_two` only prune a domain once the OTHER side of the
     constraint is already a singleton, so a value can survive local
-    propagation without appearing in any globally valid solution. When the
-    candidate list is exhaustive (its count matches `n_solutions_total`, not
-    just capped at the display limit), the true per-position possibilities
+    propagation without appearing in any globally valid solution (same root
+    cause as the count-mismatch documented on strategy.py's
+    `_clue_signature`). When the candidate list is exhaustive (its count
+    matches `n_solutions_total`, not just capped at the display limit),
+    the true per-position possibilities
     are exactly the values observed across those solutions -- free to
     compute, and always correct, unlike `snap`. Falls back to `snap` when
     the list is a truncated view (more solutions exist than are listed):
@@ -79,8 +101,12 @@ def _child_solver(base: DigitcodeSolver, clue: Clue):
 
 def _question_solution_counts(solver: DigitcodeSolver, clue: Clue, q: dict, cap: int, excluded: frozenset = frozenset()) -> list[dict]:
     """Sorted, deduplicated list of {"n", "capped"} for every reachable
-    answer's resulting solution count. `capped` means the true count was >=
-    `cap` but unknown beyond that -- never presented as an exact value."""
+    answer's resulting solution count. A min/max range can't tell apart a
+    question whose branches are exactly {1, 6} from one that spans every
+    value 1..6 -- those play very differently (the former never risks
+    leaving the opponent at 2-4), so every distinct reachable count is
+    reported. `capped` means the true count was >= `cap` but unknown beyond
+    that -- never presented as an exact value."""
     counts: dict[int, bool] = {}
     for out in q["outcomes"]:
         child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
@@ -115,14 +141,16 @@ class GameState:
         snap = solver.snapshot()
         n_solutions_total = solver.count_solutions_capped(self.clue, cap=None, excluded=self.my_excluded)
         sols = solver.enumerate_solutions(self.clue, limit=6, excluded=self.my_excluded)
+        # See RACE_TIME_BUDGET_S / RACE_N_BEAM_MAX above for the rationale
+        # behind these two values.
         race = evaluate_race_strategy(
             solver,
             self.clue,
             self.a_me,
             self.a_opp,
             self.my_excluded,
-            time_budget_s=1.5,
-            n_beam_max=9,
+            time_budget_s=RACE_TIME_BUDGET_S,
+            n_beam_max=RACE_N_BEAM_MAX,
         )
         all_questions_by_label = {
             q["label"]: q for q in solver.enumerate_all_questions(self.clue)
@@ -167,7 +195,14 @@ class GameState:
             },
         }
 
-    def apply_clue(self, clue_type: str, **fields) -> dict:
+    def apply_clue(self, clue_type: str, /, **fields) -> dict:
+        # `clue_type` (and `self`) are positional-only so that a `fields`
+        # dict containing a key literally named "clue_type" (or "self")
+        # can never collide with this signature and raise a confusing
+        # "got multiple values for argument" TypeError -- such a key just
+        # lands harmlessly inside **fields instead, unused. Mirrors the
+        # pre-refactor web handler, which read specific keys by name and
+        # silently ignored anything else.
         if clue_type not in _REQUIRED_FIELDS_BY_TYPE:
             raise ValueError(f"unknown clue type: {clue_type}")
 
@@ -242,7 +277,8 @@ class GameState:
                 return self.apply_clue(clue_type, **fields)
             except ValueError as e:
                 last_error = e
-        assert last_error is not None
+        if last_error is None:
+            raise ValueError(f"apply_clue_with_fallback({clue_type!r}, []) called with no attempts")
         raise last_error
 
     def guess_failed(self, body: dict) -> dict:

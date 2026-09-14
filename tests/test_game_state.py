@@ -88,6 +88,24 @@ def test_undo_restores_previous_clue():
     assert payload["row_totals"] == {}
 
 
+def test_apply_clue_fields_containing_clue_type_key_does_not_collide():
+    """Regression test: clue_type is positional-only (game_state.py's
+    `apply_clue(self, clue_type: str, /, **fields)`), so a fields dict
+    that happens to contain a "clue_type" key can no longer raise
+    `TypeError: got multiple values for argument 'clue_type'`. The real
+    positional clue_type ("parity") wins; the bogus "clue_type" key in
+    fields is simply unused."""
+    gs = GameState()
+    payload = gs.apply_clue("parity", pos="T", value="Pair", clue_type="bogus")
+    assert all(d % 2 == 0 for d in payload["domains"]["T"])
+
+
+def test_apply_clue_with_fallback_empty_attempts_raises_value_error():
+    gs = GameState()
+    with pytest.raises(ValueError, match="no attempts"):
+        gs.apply_clue_with_fallback("parity", [])
+
+
 def test_reset_clears_everything():
     gs = GameState()
     gs.apply_clue("row_total", row="J", value=3)
