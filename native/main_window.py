@@ -17,6 +17,9 @@ from PySide6.QtWidgets import (
 )
 
 from ..game_state import GameState
+from .panels.chiffres_panel import ChiffresPanel
+from .panels.comparaisons_panel import ComparaisonsPanel
+from .panels.solutions_panel import SolutionsPanel
 
 WINDOW_WIDTH = 380
 
@@ -65,11 +68,13 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
-        # Real panels are wired in by Task 8; placeholders keep this shell
-        # independently testable in the meantime.
-        self.panels: list[QWidget] = []
-        for _ in TAB_TITLES:
-            self.stack.addWidget(QWidget())
+        self.panels: list[QWidget] = [
+            ChiffresPanel(self.game_state, self._run),
+            ComparaisonsPanel(self.game_state, self._run),
+            SolutionsPanel(self.game_state, self._run),
+        ]
+        for panel in self.panels:
+            self.stack.addWidget(panel)
 
         self._run(self.game_state.payload)
 
