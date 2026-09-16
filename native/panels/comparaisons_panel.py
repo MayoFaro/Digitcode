@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ...game_state import GameState
@@ -55,23 +56,27 @@ class ComparaisonsPanel(QWidget):
 
         layout.addWidget(QLabel("Parité & segments"))
         self.pos_grid = QGridLayout()
+        self.pos_grid.setVerticalSpacing(2)
+        self.pos_grid.setHorizontalSpacing(8)
         layout.addLayout(self.pos_grid)
         self.segment_widgets: dict[str, SegmentDigit] = {}
         self.parity_chips: dict[str, ChipButton] = {}
         positions_layout = [("T", 0, 0), ("U", 0, 1), ("V", 0, 2), ("W", 1, 0), ("X", 1, 1), ("Y", 1, 2)]
         for pos, row, col in positions_layout:
             cell = QVBoxLayout()
-            cell.addWidget(QLabel(f"<b>{pos}</b>"))
+            cell.setContentsMargins(0, 0, 0, 0)
+            cell.setSpacing(2)
+            cell.addWidget(QLabel(f"<b>{pos}</b>"), alignment=Qt.AlignHCenter)
             digit = SegmentDigit(pos)
             digit.segment_clicked.connect(
                 lambda seg, current, p=pos: self._on_segment_clicked(p, seg, current)
             )
             self.segment_widgets[pos] = digit
-            cell.addWidget(digit)
+            cell.addWidget(digit, alignment=Qt.AlignHCenter)
             chip = ChipButton("?")
             chip.clicked.connect(lambda _checked=False, p=pos: self._on_parity_clicked(p))
             self.parity_chips[pos] = chip
-            cell.addWidget(chip)
+            cell.addWidget(chip, alignment=Qt.AlignHCenter)
             wrapper = QWidget()
             wrapper.setLayout(cell)
             self.pos_grid.addWidget(wrapper, row, col)
@@ -79,8 +84,12 @@ class ComparaisonsPanel(QWidget):
         layout.addStretch(1)
 
     def _build_comparison_grid(self) -> None:
+        self.cmp_grid.setHorizontalSpacing(4)
+        self.cmp_grid.setVerticalSpacing(2)
+
         def letter_label(pos, row, col):
-            self.cmp_grid.addWidget(QLabel(f"<b>{pos}</b>"), row, col)
+            label = QLabel(f"<b>{pos}</b>")
+            self.cmp_grid.addWidget(label, row, col, alignment=Qt.AlignCenter)
 
         def connector(left, right, row, col):
             lt_chip = ChipButton("<")
@@ -88,11 +97,13 @@ class ComparaisonsPanel(QWidget):
             lt_chip.clicked.connect(lambda: self._on_comparison_clicked(left, right, "<"))
             gt_chip.clicked.connect(lambda: self._on_comparison_clicked(left, right, ">"))
             pair_row = QHBoxLayout()
+            pair_row.setContentsMargins(0, 0, 0, 0)
+            pair_row.setSpacing(2)
             pair_row.addWidget(lt_chip)
             pair_row.addWidget(gt_chip)
             wrapper = QWidget()
             wrapper.setLayout(pair_row)
-            self.cmp_grid.addWidget(wrapper, row, col)
+            self.cmp_grid.addWidget(wrapper, row, col, alignment=Qt.AlignCenter)
             self.cmp_chip_pairs[(left, right)] = (lt_chip, gt_chip)
 
         letter_label("T", 0, 0)

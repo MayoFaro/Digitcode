@@ -20,7 +20,7 @@ class ChipButton(QPushButton):
     # headless/offscreen rendering artifact.
     _BASE_STYLE = (
         "QPushButton {"
-        " border: 1px solid #bbb; border-radius: 12px; padding: 3px 9px;"
+        " border: 1px solid #bbb; border-radius: 12px; padding: 2px 4px;"
         " min-width: 22px; min-height: 20px;"
         " background: #fff; color: #333; }"
         "QPushButton:hover { border-color: #888; }"

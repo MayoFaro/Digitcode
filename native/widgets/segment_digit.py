@@ -20,7 +20,10 @@ _SEGMENT_POINTS = {
     "d": [(20, 88), (40, 88), (44, 96), (16, 96)],
 }
 
-_SCALE = 2.0
+# Non-uniform scale: X stays full-size for legibility, Y is compressed so
+# six digits (2x3 grid) fit the window without forcing extra height.
+_SCALE_X = 2.0
+_SCALE_Y = 1.4
 _GRID_WIDTH = 60
 _GRID_HEIGHT = 100
 
@@ -48,13 +51,13 @@ class SegmentDigit(QWidget):
         self._segment_state: dict[str, bool | None] = {s: None for s in SEGMENTS}
         self._paths: dict[str, QPainterPath] = {}
         self._hovered: str | None = None
-        self.setFixedSize(int(_GRID_WIDTH * _SCALE), int(_GRID_HEIGHT * _SCALE))
+        self.setFixedSize(int(_GRID_WIDTH * _SCALE_X), int(_GRID_HEIGHT * _SCALE_Y))
         self.setMouseTracking(True)
         self._build_paths()
 
     def _build_paths(self) -> None:
         for seg, points in _SEGMENT_POINTS.items():
-            polygon = QPolygonF([QPointF(x * _SCALE, y * _SCALE) for x, y in points])
+            polygon = QPolygonF([QPointF(x * _SCALE_X, y * _SCALE_Y) for x, y in points])
             path = QPainterPath()
             path.addPolygon(polygon)
             path.closeSubpath()
