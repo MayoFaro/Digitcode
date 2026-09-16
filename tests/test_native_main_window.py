@@ -1,7 +1,21 @@
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 
 from digitcode.native.main_window import MainWindow, TAB_TITLES
+
+
+def _ctrl_wheel_event(delta_y: int) -> QWheelEvent:
+    return QWheelEvent(
+        QPointF(0, 0),
+        QPointF(0, 0),
+        QPoint(0, 0),
+        QPoint(0, delta_y),
+        Qt.NoButton,
+        Qt.ControlModifier,
+        Qt.NoScrollPhase,
+        False,
+    )
 
 
 def test_window_is_always_on_top(qapp):
@@ -108,3 +122,47 @@ def test_run_drains_event_queue_before_reenabling_the_window(qapp, monkeypatch):
     # call immediately precedes it, while the window was still disabled.
     assert call_order[-1] == ("setEnabled", True)
     assert call_order[-2] == ("processEvents",)
+
+
+def test_ctrl_wheel_up_increases_opacity(qapp):
+    # abs tolerance covers the offscreen QPA's 8-bit opacity quantization,
+    # which truncates windowOpacity() to steps of 1/255 (~0.004).
+    window = MainWindow()
+    window.setWindowOpacity(0.8)
+    window.eventFilter(window, _ctrl_wheel_event(120))
+    assert window.windowOpacity() == pytest.approx(0.85, abs=0.005)
+
+
+def test_ctrl_wheel_down_decreases_opacity(qapp):
+    window = MainWindow()
+    window.setWindowOpacity(0.8)
+    window.eventFilter(window, _ctrl_wheel_event(-120))
+    assert window.windowOpacity() == pytest.approx(0.75, abs=0.005)
+
+
+def test_ctrl_wheel_opacity_is_clamped_between_20_and_100_percent(qapp):
+    window = MainWindow()
+    window.setWindowOpacity(0.22)
+    window.eventFilter(window, _ctrl_wheel_event(-120))
+    assert window.windowOpacity() == pytest.approx(0.2)
+
+    window.setWindowOpacity(1.0)
+    window.eventFilter(window, _ctrl_wheel_event(120))
+    assert window.windowOpacity() == pytest.approx(1.0)
+
+
+def test_wheel_without_ctrl_does_not_change_opacity(qapp):
+    window = MainWindow()
+    window.setWindowOpacity(0.8)
+    event = QWheelEvent(
+        QPointF(0, 0),
+        QPointF(0, 0),
+        QPoint(0, 0),
+        QPoint(0, 120),
+        Qt.NoButton,
+        Qt.NoModifier,
+        Qt.NoScrollPhase,
+        False,
+    )
+    window.eventFilter(window, event)
+    assert window.windowOpacity() == pytest.approx(0.8)

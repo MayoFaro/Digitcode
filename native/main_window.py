@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Callable
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -22,6 +22,10 @@ from .panels.comparaisons_panel import ComparaisonsPanel
 from .panels.solutions_panel import SolutionsPanel
 
 WINDOW_WIDTH = 380
+
+OPACITY_STEP = 0.05
+OPACITY_MIN = 0.2
+OPACITY_MAX = 1.0
 
 # Order matches the spec's volet 1/2/3 mapping of the web layout's
 # col-sums / col-digits / col-advice blocks.
@@ -77,6 +81,19 @@ class MainWindow(QMainWindow):
             self.stack.addWidget(panel)
 
         self._run(self.game_state.payload)
+
+        # Application-wide filter, not a wheelEvent override: Qt delivers
+        # wheel events to the widget under the cursor, so a handler on the
+        # window itself would never fire when scrolling over a button/panel.
+        QApplication.instance().installEventFilter(self)
+
+    def eventFilter(self, obj: QWidget, event: QEvent) -> bool:
+        if event.type() == QEvent.Wheel and event.modifiers() & Qt.ControlModifier:
+            step = OPACITY_STEP if event.angleDelta().y() > 0 else -OPACITY_STEP
+            opacity = min(OPACITY_MAX, max(OPACITY_MIN, self.windowOpacity() + step))
+            self.setWindowOpacity(opacity)
+            return True
+        return super().eventFilter(obj, event)
 
     def _on_tab_clicked(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
