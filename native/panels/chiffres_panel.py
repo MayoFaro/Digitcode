@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWi
 from ...game_state import GameState
 from ...mapping import COLS, POSITIONS, ROW_BOTTOM, ROW_TOP
 from ..widgets.chip_button import ChipButton
+from .question_format import format_question_label
 
 ROW_LETTERS = ROW_TOP + ROW_BOTTOM
 COL_LETTERS = COLS
@@ -34,6 +35,12 @@ class ChiffresPanel(QWidget):
             label = QLabel()
             self.domain_labels[pos] = label
             self.domains_grid.addWidget(label, i // 3, i % 3)
+
+        self.solutions_count_label = QLabel()
+        layout.addWidget(self.solutions_count_label)
+        self.best_question_label = QLabel()
+        self.best_question_label.setWordWrap(True)
+        layout.addWidget(self.best_question_label)
 
         layout.addWidget(QLabel("Sommes ligne"))
         self.row_letters_row = QHBoxLayout()
@@ -115,6 +122,14 @@ class ChiffresPanel(QWidget):
         for pos in POSITIONS:
             values = ",".join(str(v) for v in payload["domains"][pos])
             self.domain_labels[pos].setText(f"<b>{pos}</b><br>{{{values}}}")
+
+        self.solutions_count_label.setText(
+            f"Solutions restantes : {payload['n_solutions_total']}"
+        )
+        best = payload["race"].get("best_question")
+        self.best_question_label.setText(
+            "Meilleure question : " + (format_question_label(best) if best else "(aucune)")
+        )
 
         self._render_letters(
             self.row_letters_row, ROW_LETTERS, payload["row_totals"], self._selected_row_letter,

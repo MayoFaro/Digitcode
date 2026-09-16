@@ -14,37 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from ...game_state import GameState
+from .question_format import format_question_label
 
-# Below the threshold, every distinct reachable solution count is listed
-# exactly -- that's precisely the zone where it matters whether a question
-# can leave 2-4 solutions versus jumping straight to 1. Mirrors
-# web/static/app.js's SOLUTION_COUNT_EXACT_THRESHOLD.
-SOLUTION_COUNT_EXACT_THRESHOLD = 4
 MAX_ALTERNATIVES_SHOWN = 10
-
-
-def _format_solution_counts(entry: dict) -> str:
-    counts = entry.get("solution_counts")
-    if not counts:
-        return "?"
-    small = [c["n"] for c in counts if c["n"] <= SOLUTION_COUNT_EXACT_THRESHOLD]
-    has_large = any(c["n"] > SOLUTION_COUNT_EXACT_THRESHOLD for c in counts)
-    parts = [str(n) for n in small]
-    if has_large:
-        parts.append(f">{SOLUTION_COUNT_EXACT_THRESHOLD}")
-    if len(parts) == 1:
-        singular = len(small) == 1 and small[0] == 1
-        return f"{parts[0]} solution" + ("" if singular else "s")
-    return f"{', '.join(parts[:-1])} ou {parts[-1]} solutions"
-
-
-def _format_question_label(entry: dict) -> str:
-    prefix = ""
-    if entry.get("near_finish"):
-        prefix += "\U0001f534 "  # mirrors the web's red .near-finish styling
-    if entry.get("lookahead_risk"):
-        prefix += "⚠️ "  # mirrors the web's amber .lookahead-risk styling
-    return f"{prefix}{entry['label']} — {_format_solution_counts(entry)}"
 
 
 class SolutionsPanel(QWidget):
@@ -134,7 +106,7 @@ class SolutionsPanel(QWidget):
 
         best = race.get("best_question")
         self.best_question_label.setText(
-            "Meilleure question : " + (_format_question_label(best) if best else "(aucune)")
+            "Meilleure question : " + (format_question_label(best) if best else "(aucune)")
         )
         self.guess_now_label.setText(
             "OUI — proposez une solution !" if race["guess_now"] else "Non, attendez."
@@ -142,7 +114,7 @@ class SolutionsPanel(QWidget):
 
         self.alternatives_list.clear()
         for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_SHOWN]:
-            self.alternatives_list.addItem(_format_question_label(alt))
+            self.alternatives_list.addItem(format_question_label(alt))
 
         self.a_me_label.setText(f"Moi : {payload['a_me']}/2")
         self.a_opp_label.setText(f"Adversaire : {payload['a_opp']}/2")

@@ -12,6 +12,18 @@ def test_refresh_shows_full_domains_on_a_fresh_board(qapp):
     assert "9" in panel.domain_labels["T"].text()
 
 
+def test_refresh_shows_solutions_count_and_best_question(qapp):
+    gs = GameState()
+    panel = ChiffresPanel(gs, run=lambda fn: fn())
+    payload = gs.payload()
+    panel.refresh(payload)
+
+    assert str(payload["n_solutions_total"]) in panel.solutions_count_label.text()
+    best = payload["race"].get("best_question")
+    assert best is not None
+    assert best["label"] in panel.best_question_label.text()
+
+
 def test_selecting_a_row_letter_then_a_value_sets_the_row_total(qapp):
     gs = GameState()
     panel = ChiffresPanel(gs, run=lambda fn: fn())
