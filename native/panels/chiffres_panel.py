@@ -38,9 +38,6 @@ class ChiffresPanel(QWidget):
 
         self.solutions_count_label = QLabel()
         layout.addWidget(self.solutions_count_label)
-        self.best_question_label = QLabel()
-        self.best_question_label.setWordWrap(True)
-        layout.addWidget(self.best_question_label)
 
         layout.addWidget(QLabel("Sommes ligne"))
         self.row_letters_row = QHBoxLayout()
@@ -53,6 +50,11 @@ class ChiffresPanel(QWidget):
         layout.addLayout(self.col_letters_row)
         self.col_values_row = QHBoxLayout()
         layout.addLayout(self.col_values_row)
+
+        layout.addSpacing(24)
+        self.best_question_label = QLabel()
+        self.best_question_label.setWordWrap(True)
+        layout.addWidget(self.best_question_label)
 
         layout.addStretch(1)
 
