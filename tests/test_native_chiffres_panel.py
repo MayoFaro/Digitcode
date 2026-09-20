@@ -24,6 +24,39 @@ def test_refresh_shows_solutions_count_and_best_question(qapp):
     assert best["label"] in panel.best_question_label.text()
 
 
+def test_refresh_shows_no_ev_plus_questions_on_a_fresh_board(qapp):
+    gs = GameState()
+    panel = ChiffresPanel(gs, run=lambda fn: fn())
+    panel.refresh(gs.payload())
+    assert panel.ev_plus_label.text() == "(aucun)"
+
+
+def test_refresh_shows_an_ev_plus_question_when_one_exists(qapp):
+    """Integration check for the "coups à solution unique" feature: at the
+    board state from the real session that prompted it, X vs Y is a 1-vs-11
+    split (a real win branch, no trap branch) and must show up here."""
+    gs = GameState()
+    for clue_type, fields in [
+        ("row_total", dict(row="M", value=4)),
+        ("comparison", dict(left="T", rel=">", right="U")),
+        ("row_total", dict(row="P", value=3)),
+        ("comparison", dict(left="U", rel=">", right="X")),
+        ("row_total", dict(row="K", value=3)),
+        ("comparison", dict(left="V", rel=">", right="U")),
+        ("col_total", dict(col="C", value=2)),
+        ("comparison", dict(left="W", rel=">", right="X")),
+        ("col_total", dict(col="G", value=1)),
+        ("col_total", dict(col="H", value=4)),
+        ("comparison", dict(left="V", rel=">", right="Y")),
+    ]:
+        payload = gs.apply_clue(clue_type, **fields)
+
+    panel = ChiffresPanel(gs, run=lambda fn: fn())
+    panel.refresh(payload)
+    assert "Qui est plus grand, X ou Y ?" in panel.ev_plus_label.text()
+    assert "P(gagner)=8%" in panel.ev_plus_label.text()
+
+
 def test_selecting_a_row_letter_then_a_value_sets_the_row_total(qapp):
     gs = GameState()
     panel = ChiffresPanel(gs, run=lambda fn: fn())

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWi
 from ...game_state import GameState
 from ...mapping import COLS, POSITIONS, ROW_BOTTOM, ROW_TOP
 from ..widgets.chip_button import ChipButton
-from .question_format import format_question_label
+from .question_format import format_ev_question_label, format_question_label
 
 ROW_LETTERS = ROW_TOP + ROW_BOTTOM
 COL_LETTERS = COLS
@@ -55,6 +55,12 @@ class ChiffresPanel(QWidget):
         self.best_question_label = QLabel()
         self.best_question_label.setWordWrap(True)
         layout.addWidget(self.best_question_label)
+
+        layout.addSpacing(12)
+        layout.addWidget(QLabel("Coups à solution unique"))
+        self.ev_plus_label = QLabel()
+        self.ev_plus_label.setWordWrap(True)
+        layout.addWidget(self.ev_plus_label)
 
         layout.addStretch(1)
 
@@ -131,6 +137,11 @@ class ChiffresPanel(QWidget):
         best = payload["race"].get("best_question")
         self.best_question_label.setText(
             "Meilleure question : " + (format_question_label(best) if best else "(aucune)")
+        )
+
+        ev_plus = payload.get("ev_plus_questions") or []
+        self.ev_plus_label.setText(
+            "\n".join(format_ev_question_label(e) for e in ev_plus) if ev_plus else "(aucun)"
         )
 
         self._render_letters(

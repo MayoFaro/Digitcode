@@ -59,3 +59,35 @@ def test_refresh_shows_the_attempts_counts(qapp):
     panel.refresh(gs.payload())
     assert "2" in panel.a_me_label.text()
     assert "2" in panel.a_opp_label.text()
+
+
+def test_refresh_shows_no_ev_plus_questions_on_a_fresh_board(qapp):
+    gs = GameState()
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    panel.refresh(gs.payload())
+    assert panel.ev_plus_list.count() == 0
+
+
+def test_refresh_shows_an_ev_plus_question_when_one_exists(qapp):
+    """Same board state as test_native_chiffres_panel's equivalent test:
+    X vs Y is a 1-vs-11 split (a real win branch, no trap branch)."""
+    gs = GameState()
+    for clue_type, fields in [
+        ("row_total", dict(row="M", value=4)),
+        ("comparison", dict(left="T", rel=">", right="U")),
+        ("row_total", dict(row="P", value=3)),
+        ("comparison", dict(left="U", rel=">", right="X")),
+        ("row_total", dict(row="K", value=3)),
+        ("comparison", dict(left="V", rel=">", right="U")),
+        ("col_total", dict(col="C", value=2)),
+        ("comparison", dict(left="W", rel=">", right="X")),
+        ("col_total", dict(col="G", value=1)),
+        ("col_total", dict(col="H", value=4)),
+        ("comparison", dict(left="V", rel=">", right="Y")),
+    ]:
+        payload = gs.apply_clue(clue_type, **fields)
+
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    panel.refresh(payload)
+    items = [panel.ev_plus_list.item(i).text() for i in range(panel.ev_plus_list.count())]
+    assert any("Qui est plus grand, X ou Y ?" in text and "P(gagner)=8%" in text for text in items)

@@ -34,6 +34,21 @@ MAX_ALTERNATIVES_WITH_RANGE = 10
 RACE_TIME_BUDGET_S = 1.5
 RACE_N_BEAM_MAX = 9
 
+# "Coups à solution unique" (see _ev_plus_questions): only scanned when the
+# board is already this narrow. A singleton branch is negligible noise on
+# a wide-open board, and scanning every candidate question (not just the
+# top-ranked ones) for one would be needless cost that early.
+EV_SCAN_MAX_N = 50
+
+# A branch landing at 2..EV_TRAP_MAX solutions is a trap, not progress: if
+# forced to guess there and wrong, the failed guess hands the opponent a
+# near-certain win next turn. Deliberately the same boundary as
+# native/panels/question_format.py's SOLUTION_COUNT_EXACT_THRESHOLD (the UI
+# already only displays exact counts up to there) -- kept as an
+# independent literal rather than an import, since native/ depends on this
+# module and not the other way around; keep the two values in sync by hand.
+EV_TRAP_MAX = 4
+
 _REQUIRED_FIELDS_BY_TYPE = {
     "row_total": ("row",),
     "col_total": ("col",),
@@ -125,6 +140,73 @@ def _question_solution_counts(
             continue
         counts[n] = counts.get(n, False) or (n >= cap)
     return [{"n": n, "capped": capped} for n, capped in sorted(counts.items())]
+
+
+def _ev_plus_questions(
+    solver: DigitcodeSolver, clue: Clue, all_questions_by_label: dict, n_solutions_total: int,
+    excluded: frozenset, should_cancel: Callable[[], bool] = lambda: False,
+) -> list[dict]:
+    """Questions with a branch that can end the game outright (exactly 1
+    remaining solution), kept only when landing on that winning branch is
+    at least as likely as landing on a "trap" branch (2..EV_TRAP_MAX
+    solutions -- not a win, but few enough that a wrong guess there next
+    hands the opponent a near-certain win). A branch beyond the trap zone
+    is treated as neutral -- no better or worse than not having asked --
+    so it never counts against a question.
+
+    This is a DIFFERENT criterion from evaluate_race_strategy's ranking
+    (unaffected by this function): that heuristic minimizes the *expected*
+    remaining-solution fraction, so it ranks a lopsided 1-vs-11 split far
+    below a balanced 6-vs-6 one even though only the former can win this
+    turn -- correct for "reduce fastest", useless for "can I win right
+    now". Also unrelated to solver.py's ev_metrics_for_question (used by
+    the CLI's `rank` command): that one gives a 2-solution branch *partial
+    win credit*, the opposite of treating it as a trap.
+
+    EV here is p_win - p_trap: the fraction of the N current candidates
+    that resolve to an immediate win, minus the fraction that resolve to
+    the trap zone. Only questions with ev > 0 are returned, sorted best
+    first."""
+    if n_solutions_total > EV_SCAN_MAX_N or n_solutions_total == 0:
+        return []
+    cap = EV_TRAP_MAX + 1  # only need "<=EV_TRAP_MAX" vs ">EV_TRAP_MAX", not the exact large count
+    found = []
+    for q in all_questions_by_label.values():
+        if should_cancel():
+            raise Cancelled()
+        n_win = 0
+        n_trap = 0
+        counts: dict[int, bool] = {}
+        for out in q["outcomes"]:
+            child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+            child = _child_solver(solver, child_clue)
+            if child is None:
+                continue
+            n = child.count_solutions_capped(
+                child_clue, cap=cap, excluded=excluded, should_cancel=should_cancel,
+            )
+            if n == 0:
+                continue
+            counts[n] = counts.get(n, False) or (n >= cap)
+            if n == 1:
+                n_win += n
+            elif n <= EV_TRAP_MAX:
+                n_trap += n
+        if n_win == 0:
+            continue
+        ev = (n_win - n_trap) / n_solutions_total
+        if ev <= 0:
+            continue
+        found.append({
+            "qtype": q["qtype"],
+            "label": q["label"],
+            "ev": ev,
+            "p_win": n_win / n_solutions_total,
+            "p_trap": n_trap / n_solutions_total,
+            "solution_counts": [{"n": n, "capped": capped} for n, capped in sorted(counts.items())],
+        })
+    found.sort(key=lambda e: e["ev"], reverse=True)
+    return found
 
 
 class GameState:
@@ -221,11 +303,15 @@ class GameState:
             _annotate(race["best_question"])
         for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_WITH_RANGE]:
             _annotate(alt)
+        ev_plus_questions = _ev_plus_questions(
+            solver, clue, all_questions_by_label, n_solutions_total, excluded, should_cancel=should_cancel,
+        )
         return {
             "domains": _display_domains(snap, sols, n_solutions_total),
             "solutions": [solver.solution_to_string(s) for s in sols],
             "n_solutions_total": n_solutions_total,
             "trace": solver.trace,
+            "ev_plus_questions": ev_plus_questions,
             "a_me": a_me,
             "a_opp": a_opp,
             "my_excluded": [f"{c[0]}{c[1]}{c[2]} {c[3]}{c[4]}{c[5]}" for c in excluded],

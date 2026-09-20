@@ -29,3 +29,12 @@ def format_question_label(entry: dict) -> str:
     if entry.get("lookahead_risk"):
         prefix += "⚠️ "  # mirrors the web's amber .lookahead-risk styling
     return f"{prefix}{entry['label']} — {format_solution_counts(entry)}"
+
+
+def format_ev_question_label(entry: dict) -> str:
+    """Label for one of game_state._ev_plus_questions' entries: shows the
+    win probability explicitly, since that's the whole point of surfacing
+    these -- a 1% shot is still worth knowing about as long as it's
+    genuinely risk-free, unlike the plain best-question ranking, which
+    would never rank this kind of lopsided question highly."""
+    return f"\U0001f3af {entry['label']} — {format_solution_counts(entry)} (P(gagner)={entry['p_win'] * 100:.0f}%)"

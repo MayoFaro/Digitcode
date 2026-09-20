@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...game_state import GameState
-from .question_format import format_question_label
+from .question_format import format_ev_question_label, format_question_label
 
 MAX_ALTERNATIVES_SHOWN = 10
 
@@ -46,6 +46,11 @@ class SolutionsPanel(QWidget):
         self.alternatives_list = QListWidget()
         self.alternatives_list.setMaximumHeight(120)
         layout.addWidget(self.alternatives_list)
+
+        layout.addWidget(QLabel("Coups à solution unique"))
+        self.ev_plus_list = QListWidget()
+        self.ev_plus_list.setMaximumHeight(80)
+        layout.addWidget(self.ev_plus_list)
 
         attempts_row = QHBoxLayout()
         self.a_me_label = QLabel()
@@ -115,6 +120,10 @@ class SolutionsPanel(QWidget):
         self.alternatives_list.clear()
         for alt in race["ranked_alternatives"][:MAX_ALTERNATIVES_SHOWN]:
             self.alternatives_list.addItem(format_question_label(alt))
+
+        self.ev_plus_list.clear()
+        for entry in payload.get("ev_plus_questions") or []:
+            self.ev_plus_list.addItem(format_ev_question_label(entry))
 
         self.a_me_label.setText(f"Moi : {payload['a_me']}/2")
         self.a_opp_label.setText(f"Adversaire : {payload['a_opp']}/2")
