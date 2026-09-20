@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from .mapping import POSITIONS, ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
-from .solver import DigitcodeSolver, Clue
+from .solver import Cancelled, DigitcodeSolver, Clue
 from .strategy import evaluate_race_strategy
 
 # Cap for the per-question solution-count display (how many solutions each
@@ -99,7 +101,10 @@ def _child_solver(base: DigitcodeSolver, clue: Clue):
     return child
 
 
-def _question_solution_counts(solver: DigitcodeSolver, clue: Clue, q: dict, cap: int, excluded: frozenset = frozenset()) -> list[dict]:
+def _question_solution_counts(
+    solver: DigitcodeSolver, clue: Clue, q: dict, cap: int, excluded: frozenset = frozenset(),
+    should_cancel: Callable[[], bool] = lambda: False,
+) -> list[dict]:
     """Sorted, deduplicated list of {"n", "capped"} for every reachable
     answer's resulting solution count. A min/max range can't tell apart a
     question whose branches are exactly {1, 6} from one that spans every
@@ -109,11 +114,13 @@ def _question_solution_counts(solver: DigitcodeSolver, clue: Clue, q: dict, cap:
     that -- never presented as an exact value."""
     counts: dict[int, bool] = {}
     for out in q["outcomes"]:
+        if should_cancel():
+            raise Cancelled()
         child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
         child = _child_solver(solver, child_clue)
         if child is None:
             continue
-        n = child.count_solutions_capped(child_clue, cap=cap, excluded=excluded)
+        n = child.count_solutions_capped(child_clue, cap=cap, excluded=excluded, should_cancel=should_cancel)
         if n == 0:
             continue
         counts[n] = counts.get(n, False) or (n >= cap)
@@ -136,24 +143,67 @@ class GameState:
         self.my_excluded: frozenset = frozenset()
 
     def payload(self) -> dict:
+        return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
+
+    @staticmethod
+    def build_quick_payload_from(clue: Clue) -> dict:
+        """Cheap subset of `build_payload_from`: only the fields derivable
+        from a bare `propagate()` (fast -- no solution counting, race
+        strategy, or question enumeration, the parts that can take seconds
+        on a wide-open board). For the native app: rendered immediately
+        after `apply_clue_fast`, merged over the last full payload, so a
+        just-set total/comparison/parity/segment shows up on screen right
+        away (as "already set", chip highlighted) instead of looking like
+        the click did nothing until the much slower background worker
+        eventually delivers the full payload. Not a substitute for it --
+        n_solutions_total/race/reachable sums here would be silently wrong
+        if used beyond that immediate-feedback purpose."""
         solver = DigitcodeSolver()
-        solver.propagate(self.clue)  # may raise ValueError; callers must catch it
+        solver.propagate(clue)  # may raise ValueError; callers must catch it
+        return {
+            "domains": solver.snapshot(),
+            "row_totals": clue.row_totals,
+            "col_totals": clue.col_totals,
+            "parity": clue.parity,
+            "comparisons": clue.comparisons,
+            "segment_state": {f"{p}{s}": v for (p, s), v in clue.segment_state.items()},
+        }
+
+    @staticmethod
+    def build_payload_from(
+        clue: Clue, a_me: int, a_opp: int, excluded: frozenset,
+        should_cancel: Callable[[], bool] = lambda: False,
+    ) -> dict:
+        """The guts of `payload()`, parameterized on explicit inputs instead
+        of `self.*` so it can run against a `clone_clue` snapshot from a
+        background thread while the live `GameState` keeps mutating its own
+        `self.clue` for the next move. `should_cancel` is threaded down into
+        every expensive solver/strategy call; passing it raises
+        `solver.Cancelled` (propagated to the caller) as soon as a newer
+        move makes this computation stale. Callers that don't pass it (the
+        web app, the CLI, `payload()` above) get the previous, uncancellable
+        behavior unchanged."""
+        solver = DigitcodeSolver()
+        solver.propagate(clue)  # may raise ValueError; callers must catch it
         snap = solver.snapshot()
-        n_solutions_total = solver.count_solutions_capped(self.clue, cap=None, excluded=self.my_excluded)
-        sols = solver.enumerate_solutions(self.clue, limit=6, excluded=self.my_excluded)
+        n_solutions_total = solver.count_solutions_capped(
+            clue, cap=None, excluded=excluded, should_cancel=should_cancel,
+        )
+        sols = solver.enumerate_solutions(clue, limit=6, excluded=excluded, should_cancel=should_cancel)
         # See RACE_TIME_BUDGET_S / RACE_N_BEAM_MAX above for the rationale
         # behind these two values.
         race = evaluate_race_strategy(
             solver,
-            self.clue,
-            self.a_me,
-            self.a_opp,
-            self.my_excluded,
+            clue,
+            a_me,
+            a_opp,
+            excluded,
             time_budget_s=RACE_TIME_BUDGET_S,
             n_beam_max=RACE_N_BEAM_MAX,
+            should_cancel=should_cancel,
         )
         all_questions_by_label = {
-            q["label"]: q for q in solver.enumerate_all_questions(self.clue)
+            q["label"]: q for q in solver.enumerate_all_questions(clue, should_cancel=should_cancel)
             if len(q["outcomes"]) > 1
         }
 
@@ -161,7 +211,9 @@ class GameState:
             q = all_questions_by_label.get(entry["label"])
             if q is None:
                 return
-            counts = _question_solution_counts(solver, self.clue, q, RANGE_DISPLAY_CAP, excluded=self.my_excluded)
+            counts = _question_solution_counts(
+                solver, clue, q, RANGE_DISPLAY_CAP, excluded=excluded, should_cancel=should_cancel,
+            )
             if counts:
                 entry["solution_counts"] = counts
 
@@ -174,28 +226,28 @@ class GameState:
             "solutions": [solver.solution_to_string(s) for s in sols],
             "n_solutions_total": n_solutions_total,
             "trace": solver.trace,
-            "a_me": self.a_me,
-            "a_opp": self.a_opp,
-            "my_excluded": [f"{c[0]}{c[1]}{c[2]} {c[3]}{c[4]}{c[5]}" for c in self.my_excluded],
+            "a_me": a_me,
+            "a_opp": a_opp,
+            "my_excluded": [f"{c[0]}{c[1]}{c[2]} {c[3]}{c[4]}{c[5]}" for c in excluded],
             "race": race,
-            "row_totals": self.clue.row_totals,
-            "col_totals": self.clue.col_totals,
-            "parity": self.clue.parity,
-            "comparisons": self.clue.comparisons,
-            "segment_state": {f"{p}{s}": v for (p, s), v in self.clue.segment_state.items()},
+            "row_totals": clue.row_totals,
+            "col_totals": clue.col_totals,
+            "parity": clue.parity,
+            "comparisons": clue.comparisons,
+            "segment_state": {f"{p}{s}": v for (p, s), v in clue.segment_state.items()},
             "reachable_row_sums": {
                 row: solver._reachable_sums(row_contributors(row))
                 for row in ROW_TOP + ROW_BOTTOM
-                if row not in self.clue.row_totals
+                if row not in clue.row_totals
             },
             "reachable_col_sums": {
                 col: solver._reachable_sums(col_contributors(col))
                 for col in COLS
-                if col not in self.clue.col_totals
+                if col not in clue.col_totals
             },
         }
 
-    def apply_clue(self, clue_type: str, /, **fields) -> dict:
+    def _apply_mutation(self, clue_type: str, /, **fields) -> None:
         # `clue_type` (and `self`) are positional-only so that a `fields`
         # dict containing a key literally named "clue_type" (or "self")
         # can never collide with this signature and raise a confusing
@@ -203,6 +255,11 @@ class GameState:
         # lands harmlessly inside **fields instead, unused. Mirrors the
         # pre-refactor web handler, which read specific keys by name and
         # silently ignored anything else.
+        #
+        # Shared by `apply_clue` and `apply_clue_fast`: both need the exact
+        # same field validation + history bookkeeping + `Clue` mutation, and
+        # differ only in how they validate the *result* (a full payload vs.
+        # a cheap propagate-only check) -- see each method's docstring.
         if clue_type not in _REQUIRED_FIELDS_BY_TYPE:
             raise ValueError(f"unknown clue type: {clue_type}")
 
@@ -255,8 +312,26 @@ class GameState:
             else:
                 clue.segment_state[key] = bool(fields["value"])
 
+    def apply_clue(self, clue_type: str, /, **fields) -> dict:
+        self._apply_mutation(clue_type, **fields)
         try:
             return self.payload()
+        except ValueError:
+            self.clue = self.history.pop()
+            raise
+
+    def apply_clue_fast(self, clue_type: str, /, **fields) -> None:
+        """Like `apply_clue`, but validates the result with a cheap
+        `propagate()` call instead of computing the full display payload
+        (the expensive counts, race strategy, and per-question annotations).
+        For a caller that wants instant accept/reject feedback -- e.g. the
+        native app's UI thread, so the window is never blocked while typing
+        -- and will separately request the expensive payload on its own
+        schedule (typically on a background thread it can cancel and
+        restart as newer moves arrive; see native/solve_worker.py)."""
+        self._apply_mutation(clue_type, **fields)
+        try:
+            DigitcodeSolver().propagate(self.clue)
         except ValueError:
             self.clue = self.history.pop()
             raise
@@ -279,6 +354,21 @@ class GameState:
                 last_error = e
         if last_error is None:
             raise ValueError(f"apply_clue_with_fallback({clue_type!r}, []) called with no attempts")
+        raise last_error
+
+    def apply_clue_with_fallback_fast(self, clue_type: str, attempts: list[dict]) -> None:
+        """Like `apply_clue_with_fallback`, but tries each attempt via
+        `apply_clue_fast` (mutate + cheap validation only) instead of the
+        full `apply_clue`. See `apply_clue_fast` for why."""
+        last_error: ValueError | None = None
+        for fields in attempts:
+            try:
+                self.apply_clue_fast(clue_type, **fields)
+                return
+            except ValueError as e:
+                last_error = e
+        if last_error is None:
+            raise ValueError(f"apply_clue_with_fallback_fast({clue_type!r}, []) called with no attempts")
         raise last_error
 
     def guess_failed(self, body: dict) -> dict:

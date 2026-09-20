@@ -1,6 +1,6 @@
 import pytest
 
-from digitcode.solver import DigitcodeSolver, Clue
+from digitcode.solver import Cancelled, DigitcodeSolver, Clue
 from tests.conftest import make_solver
 
 
@@ -152,6 +152,59 @@ def test_exact_and_capped_solution_counts_agree(free):
     s = make_solver(free)
     clue = Clue()
     assert s.count_solutions_exact(clue, cap=None) == s.count_solutions_capped(clue, cap=None)
+
+
+def test_count_solutions_capped_raises_cancelled_when_asked_to_stop():
+    """The cooperative cancellation checkpoint lives inside the itertools
+    loop, checked every 4096 combinations -- on an empty board (10**6
+    combos) an always-True should_cancel must still raise well before the
+    loop would otherwise finish."""
+    s = DigitcodeSolver()
+    clue = Clue()
+    s.propagate(clue)
+    with pytest.raises(Cancelled):
+        s.count_solutions_capped(clue, should_cancel=lambda: True)
+
+
+def test_count_solutions_capped_unaffected_when_never_cancelled():
+    s = DigitcodeSolver()
+    clue = Clue()
+    clue.row_totals["J"] = 3
+    clue.col_totals["A"] = 1
+    s.propagate(clue)
+    exact = s.count_solutions_capped(clue)
+    assert s.count_solutions_capped(clue, should_cancel=lambda: False) == exact
+
+
+def test_enumerate_solutions_raises_cancelled_when_asked_to_stop():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    with pytest.raises(Cancelled):
+        s.enumerate_solutions(clue, limit=10, should_cancel=lambda: True)
+
+
+def test_enumerate_solutions_unaffected_when_never_cancelled():
+    s = make_solver({"X": {6, 7}, "Y": {8, 9}})
+    clue = Clue()
+    expected = s.enumerate_solutions(clue, limit=10)
+    assert s.enumerate_solutions(clue, limit=10, should_cancel=lambda: False) == expected
+
+
+def test_enumerate_all_questions_raises_cancelled_when_asked_to_stop():
+    s = DigitcodeSolver()
+    clue = Clue()
+    s.propagate(clue)
+    with pytest.raises(Cancelled):
+        s.enumerate_all_questions(clue, should_cancel=lambda: True)
+
+
+def test_enumerate_all_questions_unaffected_when_never_cancelled():
+    s = DigitcodeSolver()
+    clue = Clue()
+    clue.row_totals["J"] = 3
+    s.propagate(clue)
+    expected = s.enumerate_all_questions(clue)
+    assert s.enumerate_all_questions(clue, should_cancel=lambda: False) == expected
 
 
 def test_propagate_rejects_a_row_and_col_total_combination_unreachable_together():

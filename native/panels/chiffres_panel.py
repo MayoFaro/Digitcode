@@ -97,14 +97,14 @@ class ChiffresPanel(QWidget):
             chip = ChipButton(str(value), selected=(value == current))
             chip.clicked.connect(
                 lambda _checked=False, v=value: self._run(
-                    lambda: self.game_state.apply_clue(clue_type, **{field_name: letter, "value": v})
+                    lambda: self.game_state.apply_clue_fast(clue_type, **{field_name: letter, "value": v})
                 )
             )
             layout.addWidget(chip)
         raz = ChipButton("RAZ")
         raz.clicked.connect(
             lambda _checked=False: self._run(
-                lambda: self.game_state.apply_clue(clue_type, **{field_name: letter, "value": None})
+                lambda: self.game_state.apply_clue_fast(clue_type, **{field_name: letter, "value": None})
             )
         )
         layout.addWidget(raz)

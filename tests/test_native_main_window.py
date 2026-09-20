@@ -1,6 +1,7 @@
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QApplication
 
 from digitcode.native.main_window import MainWindow, TAB_TITLES
 
@@ -122,6 +123,133 @@ def test_run_drains_event_queue_before_reenabling_the_window(qapp, monkeypatch):
     # call immediately precedes it, while the window was still disabled.
     assert call_order[-1] == ("setEnabled", True)
     assert call_order[-2] == ("processEvents",)
+
+
+def test_mutate_keeps_the_window_enabled_and_renders_after_the_worker_finishes(qapp):
+    """_mutate is the async, clue-entry counterpart of _run: the fast
+    mutation is instant and the window must never be disabled for it, even
+    though the display payload is still being computed on a background
+    worker."""
+    window = MainWindow()
+    window.show()
+    assert window.centralWidget().isEnabled()
+
+    reachable = window.game_state.payload()["reachable_row_sums"]["J"]
+    target = reachable[0]
+    window._mutate(lambda: window.game_state.apply_clue_fast("row_total", row="J", value=target))
+
+    assert window.game_state.clue.row_totals["J"] == target
+    assert window.centralWidget().isEnabled()
+
+    window._worker.wait()
+    QApplication.processEvents()  # deliver the cross-thread finished_ok signal
+
+    expected = window.game_state.payload()["n_solutions_total"]
+    assert window.solutions_label.text() == f"Solutions restantes : {expected}"
+    assert not window.busy_label.isVisible()
+
+
+def test_mutate_renders_the_new_clue_immediately_before_the_worker_finishes(qapp):
+    """Regression test: a real user reported that the window felt
+    unresponsive after a click even though it technically wasn't blocked --
+    _mutate used to only start the background worker without ever
+    re-rendering, so nothing on screen showed the just-entered clue until
+    the (much slower) full payload eventually arrived. _render_quick must
+    make the panels reflect the new clue state synchronously, before the
+    worker has had a chance to finish."""
+    window = MainWindow()
+    window.show()
+    chiffres = window.panels[0]
+
+    window._mutate(lambda: window.game_state.apply_clue_fast("row_total", row="K", value=5))
+
+    assert window._worker.isRunning()
+    assert chiffres._last_payload["row_totals"] == {"K": 5}
+    assert window.game_state.clue.row_totals == {"K": 5}
+
+    window._worker.wait()
+    QApplication.processEvents()
+
+
+def test_mutate_on_contradiction_shows_error_and_does_not_schedule_a_worker(qapp):
+    window = MainWindow()
+    window.show()
+    window.game_state.apply_clue("parity", pos="T", value="Pair")
+    window.game_state.apply_clue("segment", pos="T", seg="b", value=False)
+    window._schedule_refresh()
+    window._worker.wait()
+    QApplication.processEvents()
+    generation_before = window._generation
+
+    window._mutate(lambda: window.game_state.apply_clue_fast("segment", pos="T", seg="a", value=False))
+
+    assert window.error_label.isVisible()
+    assert window._generation == generation_before
+
+
+def test_schedule_refresh_cancels_the_previous_worker(qapp):
+    window = MainWindow()
+    window._schedule_refresh()
+    first_worker = window._worker
+
+    window._schedule_refresh()
+
+    assert first_worker._cancel_event.is_set()
+    window._worker.wait()
+    QApplication.processEvents()
+
+
+def test_rapid_successive_mutations_do_not_crash_and_settle_on_the_last_state(qapp):
+    """Regression test for a real crash found via manual verification:
+    superseding a worker by just reassigning window._worker dropped its
+    only Python reference while the OS thread could still be running --
+    PySide6 aborts the process with "QThread: Destroyed while thread is
+    still running" in that case. Firing several mutations back-to-back
+    (without waiting for each one's worker to finish first) must survive
+    and eventually settle on the payload for the LAST clue state.
+
+    Uses three transitions on the SAME field (each replaces the previous
+    parity constraint outright, never compounds it) rather than three
+    different row totals: stacking independently-computed row totals can
+    legitimately reject a later one for solver reasons unrelated to this
+    test (reachable_row_sums reflects only local per-position domains,
+    not full joint feasibility once another row is also fixed -- a
+    pre-existing solver characteristic, not what's being tested here).
+    This test is purely about surviving rapid worker supersession, so it
+    deliberately avoids that unrelated edge case."""
+    window = MainWindow()
+    window.show()
+
+    for value in ["Pair", "Impair", "Pair"]:
+        window._mutate(lambda v=value: window.game_state.apply_clue_fast("parity", pos="T", value=v))
+        QApplication.processEvents()
+
+    assert window.game_state.clue.parity["T"] == "Pair"
+
+    # Let every superseded worker actually finish before the test process
+    # exits -- otherwise a leftover running QThread at interpreter shutdown
+    # can itself trigger the same abort.
+    for worker in list(window._retired_workers) + [window._worker]:
+        worker.wait()
+        QApplication.processEvents()
+
+    expected = window.game_state.payload()["n_solutions_total"]
+    assert window.solutions_label.text() == f"Solutions restantes : {expected}"
+
+
+def test_on_worker_finished_ignores_a_stale_generation(qapp):
+    window = MainWindow()
+    before = window.solutions_label.text()
+    window._generation = 5
+    window._on_worker_finished({"n_solutions_total": 999999}, generation=3)
+    assert window.solutions_label.text() == before
+
+
+def test_on_worker_failed_ignores_a_stale_generation(qapp):
+    window = MainWindow()
+    window._generation = 5
+    window._on_worker_failed("boom", generation=3)
+    assert not window.error_label.isVisible()
 
 
 def test_ctrl_wheel_up_increases_opacity(qapp):

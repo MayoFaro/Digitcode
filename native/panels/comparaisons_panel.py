@@ -126,11 +126,11 @@ class ComparaisonsPanel(QWidget):
         rel = _current_relation(self._last_payload["comparisons"], left, right)
         if rel == want:
             stored = _find_stored_comparison(self._last_payload["comparisons"], left, right)
-            self._run(lambda: self.game_state.apply_clue(
+            self._run(lambda: self.game_state.apply_clue_fast(
                 "comparison", left=stored[0], rel=stored[1], right=stored[2], remove=True,
             ))
         else:
-            self._run(lambda: self.game_state.apply_clue("comparison", left=left, rel=want, right=right))
+            self._run(lambda: self.game_state.apply_clue_fast("comparison", left=left, rel=want, right=right))
 
     def _on_parity_clicked(self, pos: str) -> None:
         current = self._last_payload["parity"].get(pos)
@@ -140,7 +140,7 @@ class ComparaisonsPanel(QWidget):
             attempts = [{"pos": pos, "value": "Impair"}, {"pos": pos, "value": None}]
         else:
             attempts = [{"pos": pos, "value": None}]
-        self._run(lambda: self.game_state.apply_clue_with_fallback("parity", attempts))
+        self._run(lambda: self.game_state.apply_clue_with_fallback_fast("parity", attempts))
 
     def _on_segment_clicked(self, pos: str, seg: str, current) -> None:
         if current is None:
@@ -149,7 +149,7 @@ class ComparaisonsPanel(QWidget):
             attempts = [{"pos": pos, "seg": seg, "value": False}, {"pos": pos, "seg": seg, "value": None}]
         else:
             attempts = [{"pos": pos, "seg": seg, "value": None}]
-        self._run(lambda: self.game_state.apply_clue_with_fallback("segment", attempts))
+        self._run(lambda: self.game_state.apply_clue_with_fallback_fast("segment", attempts))
 
     def refresh(self, payload: dict) -> None:
         self._last_payload = payload

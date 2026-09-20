@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Callable, Dict, FrozenSet, Optional, Tuple
 
-from .solver import DigitcodeSolver, Clue
+from .solver import Cancelled, DigitcodeSolver, Clue
 
 Candidate = Tuple[int, int, int, int, int, int]
 
@@ -127,7 +127,7 @@ _LOOKAHEAD_BEAM_WIDTH = 4
 _LOOKAHEAD_DANGER_PENALTY = 0.4
 
 
-def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_counter, node_budget, deadline, beam_width=None, q_cache=None):
+def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_counter, node_budget, deadline, beam_width=None, q_cache=None, should_cancel: Callable[[], bool] = lambda: False):
     # NOTE: the key deliberately omits `base_solver` -- see the limitation
     # documented on `_clue_signature` and at the memo dict in
     # `evaluate_race_strategy`.
@@ -163,6 +163,17 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         return 1.0
 
     node_counter[0] += 1
+    # `should_cancel` (a newer clue is waiting) is checked separately from
+    # the node/time budget below and raises a different exception on
+    # purpose: _BudgetExceeded tells evaluate_race_strategy "this tier is
+    # too expensive, degrade to the next cheaper one and keep going" --
+    # exactly the wrong reaction to a stale request, which should abort the
+    # computation outright instead of doing more (cheaper) work on data
+    # that's already superseded. Cancelled is left uncaught here and by
+    # _race_search's tier loop, so it propagates all the way out of
+    # evaluate_race_strategy.
+    if should_cancel():
+        raise Cancelled()
     # Two independent termination conditions: node count bounds the search
     # size, the deadline bounds wall-clock latency (a single node can cost an
     # uncapped DFS count plus a full question enumeration, so 20k nodes is
@@ -215,7 +226,7 @@ def _exact_value(cur_clue, a_me_, a_opp_, excl_, mover, base_solver, memo, node_
         questions = sorted(questions, key=_cheap_rank)[:beam_width]
 
     def recurse(clue_, a_me2, a_opp2, excl2, mover2, solver2):
-        return _exact_value(clue_, a_me2, a_opp2, excl2, mover2, solver2, memo, node_counter, node_budget, deadline, beam_width, q_cache)
+        return _exact_value(clue_, a_me2, a_opp2, excl2, mover2, solver2, memo, node_counter, node_budget, deadline, beam_width, q_cache, should_cancel)
 
     if not questions:
         if mover == "me":
@@ -339,6 +350,7 @@ def _apply_lookahead_penalty(
 def _heuristic_fallback(
     solver: DigitcodeSolver, clue: Clue, questions: list, n_gate: int, a_me: int, fallback_cap: int,
     my_excluded: FrozenSet[Candidate] = frozenset(),
+    should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict:
     """n_gate is the (possibly heavily capped, at n_exact_max+1) count used
     only for the guess_now check. It is NOT used for scoring: scoring needs
@@ -386,6 +398,8 @@ def _heuristic_fallback(
         # average of terms <= 1 -- is always in [0, 1] and so is 1 - score.
         scored = []
         for q in questions:
+            if should_cancel():
+                raise Cancelled()
             branches = _question_branches(solver, clue, q, cap=fallback_cap, excluded=my_excluded)
             sum_n_r = sum(b[2] for b in branches)
             if sum_n_r == 0:
@@ -439,6 +453,7 @@ def _race_search(
     node_budget: int,
     deadline: float,
     beam_width: Optional[int],
+    should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict:
     """Alternating-turn expectimax over the race, ranking every top-level
     question by the resulting win probability.
@@ -481,6 +496,8 @@ def _race_search(
 
     ranked = []
     for q in questions:
+        if should_cancel():
+            raise Cancelled()
         # Normalized by this question's own branch-count sum, not by `n` --
         # see `_question_branches` and `_clue_signature`.
         branches = _question_branches(solver, clue, q, excluded=my_excluded)
@@ -495,10 +512,10 @@ def _race_search(
         total = 0.0
         for child_clue, child_solver, n_ans in branches:
             p = n_ans / sum_n_ans
-            wait_val = _exact_value(child_clue, a_me, a_opp, my_excluded, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache)
+            wait_val = _exact_value(child_clue, a_me, a_opp, my_excluded, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache, should_cancel)
             gv = _best_guess_value(
                 child_solver, child_clue, n_ans, a_me, my_excluded, 1.0,
-                lambda ne, cc=child_clue: _exact_value(cc, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache),
+                lambda ne, cc=child_clue: _exact_value(cc, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache, should_cancel),
             )
             outcome_val = max(wait_val, gv) if gv is not None else wait_val
             total += p * outcome_val
@@ -507,7 +524,7 @@ def _race_search(
 
     direct_guess = _best_guess_value(
         solver, clue, n, a_me, my_excluded, 1.0,
-        lambda ne: _exact_value(clue, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache),
+        lambda ne: _exact_value(clue, a_me - 1, a_opp, ne, "opp", solver, memo, node_counter, node_budget, deadline, beam_width, q_cache, should_cancel),
     )
 
     if not ranked:
@@ -544,6 +561,7 @@ def evaluate_race_strategy(
     near_finish_threshold: int = 3,
     n_beam_max: int = 12,
     beam_width: int = 2,
+    should_cancel: Callable[[], bool] = lambda: False,
 ) -> dict:
     """Recommend a move for the assisted player, as a dict with:
 
@@ -566,6 +584,8 @@ def evaluate_race_strategy(
     # derived from `n` below, consistent with what's actually still possible.
     # Capped at n_beam_max + 1 -- enough to place the board in a tier without
     # paying for an exact count on a wide-open board.
+    if should_cancel():
+        raise Cancelled()
     n = solver.count_solutions_exact(clue, cap=n_beam_max + 1, excluded=my_excluded)
     questions = [q for q in solver.enumerate_all_questions(clue) if len(q["outcomes"]) > 1]
 
@@ -581,9 +601,9 @@ def evaluate_race_strategy(
             try:
                 return _race_search(
                     solver, clue, a_me, a_opp, my_excluded, questions, n,
-                    near_finish_threshold, node_budget, deadline, bw,
+                    near_finish_threshold, node_budget, deadline, bw, should_cancel,
                 )
             except _BudgetExceeded:
                 continue
 
-    return _heuristic_fallback(solver, clue, questions, n, a_me, fallback_cap, my_excluded)
+    return _heuristic_fallback(solver, clue, questions, n, a_me, fallback_cap, my_excluded, should_cancel)

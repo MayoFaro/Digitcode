@@ -16,10 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..game_state import GameState
+from ..game_state import GameState, clone_clue
 from .panels.chiffres_panel import ChiffresPanel
 from .panels.comparaisons_panel import ComparaisonsPanel
 from .panels.solutions_panel import SolutionsPanel
+from .solve_worker import SolveWorker
 
 WINDOW_WIDTH = 380
 
@@ -36,6 +37,23 @@ class MainWindow(QMainWindow):
     def __init__(self, game_state: GameState | None = None) -> None:
         super().__init__()
         self.game_state = game_state or GameState()
+        self._generation = 0
+        self._worker: SolveWorker | None = None
+        # Last full payload rendered (from _run or a finished worker), kept
+        # so _mutate can synthesize an immediate "quick" render (see
+        # build_quick_payload_from) by overlaying fresh clue-derived fields
+        # on top of it, without needing to wait for the next full payload
+        # just to show a chip as newly set.
+        self._last_payload: dict | None = None
+        # Workers superseded by a newer move: cancelled but not necessarily
+        # stopped yet. Kept alive here on purpose -- PySide6 does not keep a
+        # started QThread alive on its own once its last Python reference is
+        # dropped, so simply reassigning self._worker to the next worker
+        # destroys the previous one's C++ object out from under its still-
+        # running thread ("QThread: Destroyed while thread is still
+        # running", observed crash, not a theoretical concern). Each entry
+        # removes itself via _cleanup_worker once its own `finished` fires.
+        self._retired_workers: list[SolveWorker] = []
 
         self.setWindowTitle("Digitcode")
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
@@ -70,11 +88,22 @@ class MainWindow(QMainWindow):
         self.solutions_label = QLabel()
         layout.addWidget(self.solutions_label)
 
+        self.busy_label = QLabel("Calcul en cours…")
+        self.busy_label.setStyleSheet("color: #888; font-style: italic;")
+        self.busy_label.hide()
+        layout.addWidget(self.busy_label)
+
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
         self.panels: list[QWidget] = [
-            ChiffresPanel(self.game_state, self._run),
-            ComparaisonsPanel(self.game_state, self._run),
+            # Clue entry (row/col totals, comparisons, parity, segments) goes
+            # through _mutate: instant, cancellable-background-recompute --
+            # see _mutate/_schedule_refresh. Undo/reset/miss-tracking
+            # (SolutionsPanel) stay on the original synchronous _run: rare
+            # actions where a brief block is acceptable, deliberately left
+            # out of scope (see the plan doc).
+            ChiffresPanel(self.game_state, self._mutate),
+            ComparaisonsPanel(self.game_state, self._mutate),
             SolutionsPanel(self.game_state, self._run),
         ]
         for panel in self.panels:
@@ -129,9 +158,101 @@ class MainWindow(QMainWindow):
             self.centralWidget().setEnabled(True)
 
     def _render(self, payload: dict) -> None:
+        self._last_payload = payload
         self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")
         for panel in self.panels:
             panel.refresh(payload)
+
+    def _render_quick(self) -> None:
+        """Immediate, cheap re-render right after a fast mutation: overlays
+        the just-mutated clue's own fields (already-set totals/comparisons/
+        parity/segments, plus a fresh domain snapshot -- all derivable from
+        a bare propagate(), no solution counting/race strategy) on top of
+        the last full payload. Without this, a click registers correctly
+        (the clue IS mutated instantly) but nothing on screen shows it
+        until the much slower background worker eventually delivers the
+        full payload -- which reads as an unresponsive window even though
+        it technically isn't one. See GameState.build_quick_payload_from."""
+        quick = GameState.build_quick_payload_from(self.game_state.clue)
+        merged = {**self._last_payload, **quick} if self._last_payload is not None else quick
+        self._render(merged)
+
+    def _mutate(self, fn_fast: Callable[[], None]) -> None:
+        """Apply one fast GameState mutation (see GameState.apply_clue_fast /
+        apply_clue_with_fallback_fast: validated via a cheap propagate()
+        call, no display payload computed) synchronously -- it's cheap, so
+        the window is never disabled for it -- render immediately so the
+        move visibly registers on screen (_render_quick), then hand the
+        expensive display recomputation (solution count, race strategy,
+        reachable sums) to a cancellable background worker. This is the
+        clue-entry counterpart of `_run`: unlike `_run`, the window stays
+        interactive and visibly up to date the whole time, including while
+        a previous worker is still winding down."""
+        try:
+            fn_fast()
+        except ValueError as e:
+            self.error_label.setText("⚠️ " + str(e))
+            self.error_label.show()
+            return
+        self.error_label.hide()
+        self._render_quick()
+        self._schedule_refresh()
+
+    def _schedule_refresh(self) -> None:
+        """(Re)start the background computation of the display payload for
+        the current game_state.clue. Cancels whatever the previous worker
+        was doing without waiting for it to actually stop -- always safe,
+        since an additional clue can only shrink the remaining solution
+        space, so a stale in-flight computation is never worth blocking on
+        (see native/solve_worker.py and the plan doc). A late result from a
+        cancelled worker is simply ignored via the generation check in
+        _on_worker_finished/_on_worker_failed."""
+        if self._worker is not None:
+            self._worker.cancel()
+            self._retired_workers.append(self._worker)
+        self._generation += 1
+        worker = SolveWorker(
+            clone_clue(self.game_state.clue), self.game_state.a_me, self.game_state.a_opp,
+            self.game_state.my_excluded, self._generation,
+        )
+        worker.finished_ok.connect(self._on_worker_finished)
+        worker.failed.connect(self._on_worker_failed)
+        # QThread.finished (not our own finished_ok/failed) fires once the
+        # thread has truly stopped -- only then is it safe to drop it.
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        self._worker = worker
+        self.busy_label.show()
+        worker.start()
+
+    def _cleanup_worker(self, worker: SolveWorker) -> None:
+        if worker in self._retired_workers:
+            self._retired_workers.remove(worker)
+        worker.deleteLater()
+
+    def _on_worker_finished(self, payload: dict, generation: int) -> None:
+        if generation != self._generation:
+            return  # stale: a newer move has already superseded this result
+        self.busy_label.hide()
+        self._render(payload)
+
+    def _on_worker_failed(self, message: str, generation: int) -> None:
+        if generation != self._generation:
+            return
+        self.busy_label.hide()
+        self.error_label.setText(f"⚠️ Erreur inattendue : {message}")
+        self.error_label.show()
+
+    def closeEvent(self, event) -> None:
+        workers = list(self._retired_workers)
+        if self._worker is not None:
+            workers.append(self._worker)
+        for worker in workers:
+            try:
+                worker.cancel()
+                worker.wait(2000)
+            except RuntimeError:
+                pass  # already finished and cleaned up via deleteLater
+        super().closeEvent(event)
 
 
 def run() -> None:

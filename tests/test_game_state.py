@@ -1,6 +1,7 @@
 import pytest
 
 from digitcode.game_state import GameState
+from digitcode.solver import Cancelled
 
 
 def test_fresh_state_has_full_domains_and_two_attempts_each():
@@ -114,3 +115,85 @@ def test_reset_clears_everything():
     assert payload["row_totals"] == {}
     assert payload["a_me"] == 2
     assert payload["a_opp"] == 2
+
+
+def test_build_payload_from_matches_payload_on_the_same_state():
+    """build_payload_from is payload()'s guts, extracted to take explicit
+    inputs instead of reading self.* so it can run on a snapshot from a
+    background thread (see native/solve_worker.py) -- this is a pure
+    refactor, so it must produce the exact same result as payload() for the
+    same state."""
+    gs = GameState()
+    gs.apply_clue("row_total", row="J", value=3)
+    gs.apply_clue("comparison", left="T", rel=">", right="U")
+    assert gs.build_payload_from(gs.clue, gs.a_me, gs.a_opp, gs.my_excluded) == gs.payload()
+
+
+def test_build_payload_from_raises_cancelled_when_asked_to_stop():
+    gs = GameState()
+    with pytest.raises(Cancelled):
+        gs.build_payload_from(gs.clue, gs.a_me, gs.a_opp, gs.my_excluded, should_cancel=lambda: True)
+
+
+def test_apply_clue_fast_mutates_without_computing_the_display_payload():
+    gs = GameState()
+    result = gs.apply_clue_fast("parity", pos="T", value="Pair")
+    assert result is None
+    assert gs.clue.parity["T"] == "Pair"
+    assert all(d % 2 == 0 for d in gs.payload()["domains"]["T"])
+
+
+def test_apply_clue_fast_contradiction_rolls_back_and_does_not_grow_history():
+    """Same rollback guarantee as apply_clue's equivalent test, but
+    apply_clue_fast validates via a bare propagate() instead of a full
+    payload() -- must still reject and roll back identically."""
+    gs = GameState()
+    gs.apply_clue_fast("parity", pos="T", value="Pair")
+    gs.apply_clue_fast("segment", pos="T", seg="b", value=False)
+    history_len_before = len(gs.history)
+    with pytest.raises(ValueError):
+        gs.apply_clue_fast("segment", pos="T", seg="a", value=False)
+    assert len(gs.history) == history_len_before
+    assert gs.payload()["domains"]["T"] == [6]
+
+
+def test_apply_clue_fast_unknown_type_raises():
+    gs = GameState()
+    with pytest.raises(ValueError, match="unknown clue type"):
+        gs.apply_clue_fast("bogus")
+
+
+def test_apply_clue_with_fallback_fast_uses_first_non_contradicting_attempt():
+    gs = GameState()
+    gs.apply_clue_fast("parity", pos="T", value="Pair")
+    gs.apply_clue_fast("segment", pos="T", seg="b", value=False)
+    result = gs.apply_clue_with_fallback_fast(
+        "segment", [{"pos": "T", "seg": "a", "value": True}, {"pos": "T", "seg": "a", "value": False}]
+    )
+    assert result is None
+    assert gs.clue.segment_state[("T", "a")] is True
+
+
+def test_apply_clue_with_fallback_fast_empty_attempts_raises_value_error():
+    gs = GameState()
+    with pytest.raises(ValueError, match="no attempts"):
+        gs.apply_clue_with_fallback_fast("parity", [])
+
+
+def test_build_quick_payload_from_reflects_the_clue_without_the_expensive_fields():
+    gs = GameState()
+    gs.apply_clue_fast("row_total", row="J", value=3)
+    quick = GameState.build_quick_payload_from(gs.clue)
+    assert quick["row_totals"] == {"J": 3}
+    assert "domains" in quick
+    assert "n_solutions_total" not in quick
+    assert "race" not in quick
+
+
+def test_build_quick_payload_from_raises_on_a_contradictory_clue():
+    gs = GameState()
+    gs.apply_clue_fast("parity", pos="T", value="Pair")
+    gs.apply_clue_fast("segment", pos="T", seg="b", value=False)
+    gs.clue.segment_state[("T", "a")] = False  # bypass apply_clue_fast's own rollback
+    with pytest.raises(ValueError):
+        GameState.build_quick_payload_from(gs.clue)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import itertools
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple, Set, Optional
+from typing import Callable, Dict, List, Tuple, Set, Optional
 
 from .mapping import (
     DIGIT_TO_SEGS,
@@ -15,6 +15,18 @@ from .mapping import (
 Digit = int
 Pos = str
 Seg = str
+
+
+class Cancelled(Exception):
+    """Raised by the cancellable enumeration/counting methods when their
+    `should_cancel` callback returns True mid-computation. Callers that
+    don't pass `should_cancel` never see this -- the default is a no-op
+    that always returns False, so existing (synchronous, uncancellable)
+    call sites are unaffected."""
+
+
+def _never_cancel() -> bool:
+    return False
 
 @dataclass
 class Clue:
@@ -257,11 +269,15 @@ class DigitcodeSolver:
     def _clone_domains(self, dom: Dict[Pos, Set[int]]) -> Dict[Pos, Set[int]]:
         return {p: set(vs) for p, vs in dom.items()}
 
-    def enumerate_solutions(self, clue: Clue, limit: int = 3, excluded: frozenset = frozenset()) -> List[Dict[Pos, int]]:
+    def enumerate_solutions(
+        self, clue: Clue, limit: int = 3, excluded: frozenset = frozenset(),
+        should_cancel: Callable[[], bool] = _never_cancel,
+    ) -> List[Dict[Pos, int]]:
         start = self._clone_domains(self.domains)
         out: List[Dict[Pos,int]] = []
         def dfs(dom):
             if len(out) >= limit: return
+            if should_cancel(): raise Cancelled()
             full = self._code_from_domains(dom)
             if full is not None:
                 if tuple(full[p] for p in POSITIONS) not in excluded:
@@ -424,11 +440,12 @@ class DigitcodeSolver:
         return res
 
     # ------------------ énumération “toutes questions” ------------------
-    def enumerate_all_questions(self, clue: Clue):
+    def enumerate_all_questions(self, clue: Clue, should_cancel: Callable[[], bool] = _never_cancel):
         res = []
 
         # rows
         for row in "JKLMNOPQRS":
+            if should_cancel(): raise Cancelled()
             if row in clue.row_totals: continue
             outs = []
             for val in self._reachable_sums(row_contributors(row)):
@@ -439,6 +456,7 @@ class DigitcodeSolver:
 
         # cols
         for col in "ABCDEFGHI":
+            if should_cancel(): raise Cancelled()
             if col in clue.col_totals: continue
             outs = []
             for val in self._reachable_sums(col_contributors(col)):
@@ -449,6 +467,7 @@ class DigitcodeSolver:
 
         # parity
         for p in POSITIONS:
+            if should_cancel(): raise Cancelled()
             if p in clue.parity: continue
             ev = any(d % 2 == 0 for d in self.domains[p])
             od = any(d % 2 == 1 for d in self.domains[p])
@@ -463,6 +482,7 @@ class DigitcodeSolver:
 
         # comparisons (adjacents)
         for (a,b) in ADJACENT:
+            if should_cancel(): raise Cancelled()
             outs = []
             gt = any(x > y for x in self.domains[a] for y in self.domains[b])
             lt = any(x < y for x in self.domains[a] for y in self.domains[b])
@@ -476,6 +496,7 @@ class DigitcodeSolver:
 
         # segments
         for p in POSITIONS:
+            if should_cancel(): raise Cancelled()
             for seg in "abcdefg":
                 on_possible  = any(seg in  DIGIT_TO_SEGS[d] for d in self.domains[p])
                 off_possible = any(seg not in DIGIT_TO_SEGS[d] for d in self.domains[p])
@@ -620,7 +641,10 @@ class DigitcodeSolver:
             return 0
         return child._dfs_count(child.domains, clue, cap=cap, excluded=excluded)
 
-    def count_solutions_capped(self, clue: Clue, cap: Optional[int] = None, excluded: frozenset = frozenset()) -> int:
+    def count_solutions_capped(
+        self, clue: Clue, cap: Optional[int] = None, excluded: frozenset = frozenset(),
+        should_cancel: Callable[[], bool] = _never_cancel,
+    ) -> int:
         """Exact solution count via direct constraint-checking over the
         (already-propagated) domains, without the per-node solver-object
         creation and full re-propagation that makes `count_solutions_exact`
@@ -652,7 +676,9 @@ class DigitcodeSolver:
         ]
 
         count = 0
-        for combo in itertools.product(*doms):
+        for i, combo in enumerate(itertools.product(*doms)):
+            if i % 4096 == 0 and should_cancel():
+                raise Cancelled()
             if combo in excluded:
                 continue
             if any(combo[i] == combo[j] for i, j in adj_idx):
