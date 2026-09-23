@@ -244,15 +244,13 @@ class GameState:
         # the pool) -- see endgame.opp_hit_probability. Only the first failure
         # matters: a second one leaves it at 0 attempts, a terminal state.
         self.opp_fail_pool_size = 0
-        # Turn order (see turn_phase). Turns are counted from the questions
-        # entered (one per turn, alternating from the starting player) plus
-        # the turns spent on a guess without a question; `turn_closed` says
-        # the player of the latest turn has already guessed and failed, so
-        # the turn has passed. Like the attempts, none of this is restored
-        # by undo -- the "l'adversaire débute" toggle is the manual resync.
+        # Turn order (see turn_phase), rebuilt from raw facts on every call
+        # so that changing `opp_starts` mid-game re-reads the whole game:
+        # each entered clue is one question, and each failed guess is kept
+        # as (who, number of questions entered when it was recorded). Like
+        # the attempts, failures are not restored by undo.
         self.opp_starts = False
-        self.extra_turns = 0
-        self.turn_closed = False
+        self.failed_guesses: list[tuple[str, int]] = []
 
     def payload(self) -> dict:
         return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
@@ -387,35 +385,49 @@ class GameState:
             phase=self.turn_phase(),
         )
 
-    def _last_turn_owner(self) -> str | None:
-        """"me" / "opp" for the player of the latest turn, None before any."""
-        turns = _count_questions(self.clue) + self.extra_turns
-        if turns == 0:
-            return None
-        last_is_starter = turns % 2 == 1
-        return "me" if last_is_starter != self.opp_starts else "opp"
+    def _replay_turns(self) -> tuple[str | None, bool]:
+        """Replay the game from the starting player: returns the player of
+        the latest turn ("me" / "opp", None before any) and whether that
+        turn is already over (its player guessed and failed).
+
+        A question always opens the next player's turn. A failed guess
+        closes its player's turn -- right after its own question, or as a
+        whole turn spent guessing without asking when it was that player's
+        move. A failure that fits neither (the same player twice in a row)
+        is ignored: the order is then resynced via the "l'adversaire
+        débute" toggle."""
+        starter = "opp" if self.opp_starts else "me"
+        other = {"me": "opp", "opp": "me"}
+        owner: str | None = None
+        closed = False
+
+        def next_player() -> str:
+            return starter if owner is None else other[owner]
+
+        n_questions = _count_questions(self.clue)
+        asked = 0
+        for who, at in list(self.failed_guesses) + [(None, n_questions)]:
+            while asked < min(at, n_questions):
+                owner, closed = next_player(), False
+                asked += 1
+            if who is None:
+                break
+            if owner == who and not closed:
+                closed = True
+            elif next_player() == who:
+                owner, closed = who, True
+        return owner, closed
 
     def turn_phase(self) -> str:
-        owner = self._last_turn_owner()
+        owner, closed = self._replay_turns()
         if owner is None:
             return PHASE_OPP_TURN if self.opp_starts else PHASE_MY_TURN
         if owner == "me":
-            return PHASE_OPP_TURN if self.turn_closed else PHASE_MY_POST_QUESTION
+            return PHASE_OPP_TURN if closed else PHASE_MY_POST_QUESTION
         return PHASE_MY_TURN
 
     def _record_failed_guess(self, who: str) -> None:
-        """A failed guess ends that player's turn: right after its own
-        question, or as a whole turn spent guessing without asking."""
-        if self._last_turn_owner() == who:
-            self.turn_closed = True
-            return
-        self.extra_turns += 1
-        if self._last_turn_owner() == who:
-            self.turn_closed = True
-        else:
-            # Inconsistent with the tracked order (the other player guessed
-            # twice in a row): leave it for the user to resync via the toggle.
-            self.extra_turns -= 1
+        self.failed_guesses.append((who, _count_questions(self.clue)))
 
     def set_opp_starts(self, value: bool) -> dict:
         self.opp_starts = bool(value)
@@ -452,7 +464,6 @@ class GameState:
                 raise ValueError(f"value for {clue_type} must be an integer, got: {fields['value']!r}")
 
         self.history.append(clone_clue(self.clue))
-        self.turn_closed = False  # a new question opens a new turn
         clue = self.clue
         if clue_type == "row_total":
             if fields.get("value") is None:
@@ -580,6 +591,5 @@ class GameState:
         self.my_excluded = frozenset()
         self.opp_fail_pool_size = 0
         self.opp_starts = False
-        self.extra_turns = 0
-        self.turn_closed = False
+        self.failed_guesses = []
         return self.payload()

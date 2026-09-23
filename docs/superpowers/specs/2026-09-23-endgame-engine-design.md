@@ -345,7 +345,11 @@ ou finir le tour ».
 - `GameState.turn_phase()` déduit la phase : chaque indice saisi = une
   question, les tours alternent depuis le joueur qui débute ; un essai raté
   termine le tour de son auteur (juste après sa question, ou tour entier
-  sans question). Non restauré par `undo`, comme les tentatives.
+  sans question). Chaque essai raté est stocké brut (qui, nombre de
+  questions saisies à ce moment) et tout l'ordre des tours est rejoué à
+  chaque calcul : cocher la case après coup relit toute la partie (bug
+  constaté en partie réelle quand l'ordre était figé au moment de l'échec).
+  Les essais ratés ne sont pas annulés par `undo`, comme les tentatives.
 - Trois phases passées au moteur : `my_turn` (analyse complète),
   `my_post_question` (proposer quel code, ou finir le tour : valeurs des deux
   options), `opp_turn` (seulement P(je gagne), rien à jouer).

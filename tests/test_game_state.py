@@ -475,3 +475,42 @@ def test_endgame_passes_the_turn_phase_to_the_engine(monkeypatch):
     monkeypatch.setattr(game_state_module, "evaluate_endgame", spy)
     gs.endgame()
     assert seen["phase"] == gs.turn_phase() == "my_post_question"
+
+
+def _real_game_until_a2(gs):
+    """A real game (opponent started), up to the opponent's question A2."""
+    for kind, fields in [
+        ("col_total", dict(col="D", value=2)), ("row_total", dict(row="K", value=4)),
+        ("col_total", dict(col="E", value=6)), ("comparison", dict(left="U", rel=">", right="V")),
+        ("col_total", dict(col="F", value=4)), ("comparison", dict(left="U", rel=">", right="T")),
+        ("comparison", dict(left="U", rel=">", right="X")), ("comparison", dict(left="V", rel=">", right="Y")),
+        ("col_total", dict(col="H", value=6)), ("row_total", dict(row="L", value=3)),
+        ("col_total", dict(col="G", value=2)), ("comparison", dict(left="X", rel=">", right="Y")),
+        ("col_total", dict(col="B", value=6)), ("comparison", dict(left="W", rel=">", right="X")),
+        ("col_total", dict(col="A", value=2)),
+    ]:
+        gs.apply_clue_fast(kind, **fields)
+
+
+def test_toggling_who_starts_after_a_failure_replays_the_whole_game():
+    # Regression (real game): the opponent's failure after its question A2
+    # was recorded while "l'adversaire débute" was still unchecked; checking
+    # it afterwards must re-read that failure in the corrected order.
+    gs = GameState()
+    _real_game_until_a2(gs)
+    gs.guess_failed({"who": "opponent"})
+    gs.set_opp_starts(True)
+    assert gs.turn_phase() == "my_turn"
+    gs.apply_clue_fast("col_total", col="C", value=3)      # my question
+    assert gs.turn_phase() == "my_post_question"
+    gs.guess_failed({"who": "me", "candidate": [2, 8, 5, 9, 3, 2]})
+    assert gs.turn_phase() == "opp_turn"
+
+
+def test_same_real_game_with_the_box_checked_from_the_start():
+    gs = GameState()
+    gs.set_opp_starts(True)
+    _real_game_until_a2(gs)
+    assert gs.turn_phase() == "my_turn"          # A2 was the opponent's question
+    gs.guess_failed({"who": "opponent"})
+    assert gs.turn_phase() == "my_turn"
