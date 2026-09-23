@@ -116,3 +116,167 @@ def opp_hit_probability(s: int, m_fail: int) -> float:
         return 1.0 / s
     m = max(m_fail, s)
     return 1.0 / (m - 1) + (m - s) / ((m - 1) * s)
+
+
+def _bits(mask: int) -> List[int]:
+    out = []
+    i = 0
+    while mask:
+        if mask & 1:
+            out.append(i)
+        mask >>= 1
+        i += 1
+    return out
+
+
+def _keep(e: int, S: int) -> int:
+    """My failed guess only matters while it is still in the public pool."""
+    return e if e >= 0 and (S >> e) & 1 else NO_CANDIDATE
+
+
+class EndgameSolver:
+    """Memoised alternating-turn expectimax over candidate bitmasks.
+
+    State: (S public pool, e my relevant failed guess or -1, a_me, a_opp,
+    mover, m_fail = public pool size at the opponent's first failure or 0).
+    At most one failure per side matters: a second one takes that player
+    to 0 attempts, a terminal state. Value = my win probability.
+
+    The three flags exist so the engine can reproduce strategy.py's exact
+    search (all False) -- the non-regression anchor -- and so a self-play
+    benchmark can compare the two models. Production uses all True.
+
+    Approximation (spec, "information privée"): the opponent minimises my
+    value computed with MY failed guess (as if it knew it -- pessimistic
+    for me), and its choices don't depend on its own failed code (only its
+    hit probability does, exactly)."""
+
+    def __init__(
+        self, n: int, questions: List[EQuestion], *, choose_guess: bool = True,
+        interior_direct_guess: bool = True, track_opp_fail: bool = True,
+        deadline: Optional[float] = None, should_cancel: Callable[[], bool] = _never,
+    ) -> None:
+        self.n = n
+        self.questions = questions
+        self.choose_guess = choose_guess
+        self.interior_direct_guess = interior_direct_guess
+        self.track_opp_fail = track_opp_fail
+        self.deadline = deadline
+        self.should_cancel = should_cancel
+        self._memo: Dict[tuple, float] = {}
+        self._informative_cache: Dict[int, List[EQuestion]] = {}
+
+    def _check_budget(self) -> None:
+        if self.should_cancel():
+            raise Cancelled()
+        if self.deadline is not None and time.monotonic() > self.deadline:
+            raise EndgameBudgetExceeded()
+
+    def informative(self, S: int) -> List[EQuestion]:
+        qs = self._informative_cache.get(S)
+        if qs is None:
+            qs = [q for q in self.questions if sum(1 for c in q.classes if c & S) > 1]
+            self._informative_cache[S] = qs
+        return qs
+
+    def value(self, S: int, e: int, a_me: int, a_opp: int, mover: int, m_fail: int) -> float:
+        if a_me == 0 and a_opp == 0:
+            return 0.5
+        if a_me == 0:
+            return 0.0
+        if a_opp == 0:
+            return 1.0
+        key = (S, e, a_me, a_opp, mover, m_fail)
+        cached = self._memo.get(key)
+        if cached is not None:
+            return cached
+        self._check_budget()
+        mine = S & ~(1 << e) if e >= 0 else S
+        if mine == 0:
+            result = 0.0
+        elif mover == ME:
+            result = self._me_value(S, e, mine, a_me, a_opp, m_fail)
+        else:
+            result = self._opp_value(S, e, mine, a_me, a_opp, m_fail)
+        self._memo[key] = result
+        return result
+
+    # --- my moves -------------------------------------------------------
+
+    def my_guess_value(self, S: int, pool: int, g: int, a_me: int, a_opp: int, m_fail: int) -> float:
+        k = pool.bit_count()
+        if k == 1:
+            return 1.0
+        return 1.0 / k + (1.0 - 1.0 / k) * self.value(S, g, a_me - 1, a_opp, OPP, m_fail)
+
+    def best_my_guess(self, S: int, pool: int, a_me: int, a_opp: int, m_fail: int) -> Tuple[float, int]:
+        choices = _bits(pool)
+        if not self.choose_guess:
+            choices = choices[:1]
+        best_v, best_g = -1.0, choices[0]
+        for g in choices:
+            v = self.my_guess_value(S, pool, g, a_me, a_opp, m_fail)
+            if v > best_v:
+                best_v, best_g = v, g
+        return best_v, best_g
+
+    def _my_question(
+        self, S: int, e: int, mine: int, q: EQuestion, a_me: int, a_opp: int, m_fail: int,
+    ) -> Tuple[float, List[dict]]:
+        n_mine = mine.bit_count()
+        total = 0.0
+        branches: List[dict] = []
+        for ci, cls in enumerate(q.classes):
+            sub = cls & mine
+            if not sub:
+                continue
+            S2 = cls & S
+            wait = self.value(S2, _keep(e, S2), a_me, a_opp, OPP, m_fail)
+            guess, g = self.best_my_guess(S2, sub, a_me, a_opp, m_fail)
+            prob = sub.bit_count() / n_mine
+            if guess >= wait:
+                branch = {"ci": ci, "n": sub.bit_count(), "prob": prob, "action": "guess", "g": g, "value": guess}
+            else:
+                branch = {"ci": ci, "n": sub.bit_count(), "prob": prob, "action": "wait", "g": None, "value": wait}
+            total += prob * branch["value"]
+            branches.append(branch)
+        return total, branches
+
+    def _me_value(self, S: int, e: int, mine: int, a_me: int, a_opp: int, m_fail: int) -> float:
+        qs = self.informative(S)
+        options: List[float] = []
+        if self.interior_direct_guess or not qs:
+            options.append(self.best_my_guess(S, mine, a_me, a_opp, m_fail)[0])
+        for q in qs:
+            options.append(self._my_question(S, e, mine, q, a_me, a_opp, m_fail)[0])
+        return max(options)
+
+    # --- opponent moves -------------------------------------------------
+
+    def _opp_guess(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int) -> float:
+        s = S.bit_count()
+        hit = opp_hit_probability(s, m_fail if self.track_opp_fail else 0)
+        if hit >= 1.0:
+            return 0.0
+        new_m = m_fail if m_fail else (s if self.track_opp_fail else 0)
+        return (1.0 - hit) * self.value(S, e, a_me, a_opp - 1, ME, new_m)
+
+    def _opp_value(self, S: int, e: int, mine: int, a_me: int, a_opp: int, m_fail: int) -> float:
+        qs = self.informative(S)
+        n_mine = mine.bit_count()
+        options: List[float] = []
+        if self.interior_direct_guess or not qs:
+            options.append(self._opp_guess(S, e, a_me, a_opp, m_fail))
+        for q in qs:
+            total = 0.0
+            for cls in q.classes:
+                sub = cls & mine
+                if not sub:
+                    continue
+                S2 = cls & S
+                e2 = _keep(e, S2)
+                wait = self.value(S2, e2, a_me, a_opp, ME, m_fail)
+                guess = self._opp_guess(S2, e2, a_me, a_opp, m_fail)
+                total += sub.bit_count() / n_mine * min(wait, guess)
+            options.append(total)
+        return min(options)
