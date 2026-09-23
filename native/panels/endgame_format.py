@@ -19,7 +19,18 @@ def format_endgame(result: dict) -> str:
     decision = result["decision"]
     guess = result["guess_now"]
     best = result["best_question"]
-    if decision == "guess_now":
+    if decision == "opp_turn":
+        lines.append("Tour de l'adversaire : rien à jouer pour l'instant.")
+    elif result.get("phase") == "my_post_question":
+        end = _pct(result["end_turn_p_win"])
+        if decision == "guess_now":
+            lines.append(f"➡️ Question posée ce tour : proposer {guess['code']} maintenant ({_pct(guess['p_win'])})")
+            lines.append(f"   (finir le tour sans proposer : {end})")
+        else:
+            lines.append(f"➡️ Question posée ce tour : ne rien proposer, finir le tour ({end})")
+            if guess is not None:
+                lines.append(f"   (proposer {guess['code']} : {_pct(guess['p_win'])})")
+    elif decision == "guess_now":
         lines.append(f"➡️ Proposer {guess['code']} maintenant ({_pct(guess['p_win'])})")
         if best is not None:
             lines.append(f"   (meilleure question : {best['label']} : {_pct(best['p_win'])})")

@@ -32,6 +32,13 @@ ME = 0
 OPP = 1
 NO_CANDIDATE = -1
 
+# Where the board stands in the turn order (see GameState.turn_phase):
+# my turn before asking, my turn after my question was answered (guess or
+# end the turn), or the opponent's turn.
+PHASE_MY_TURN = "my_turn"
+PHASE_MY_POST_QUESTION = "my_post_question"
+PHASE_OPP_TURN = "opp_turn"
+
 
 def _never() -> bool:
     return False
@@ -313,16 +320,40 @@ class EndgameSolver:
             return {"p_win": direct["p_win"], "decision": "guess_now", "direct": direct, "questions": questions}
         return {"p_win": questions[0]["p_win"], "decision": "question", "direct": direct, "questions": questions}
 
+    def analyze_post_question(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int) -> dict:
+        """My turn, after my question has been answered: the only choice left
+        is guessing now (which code) or ending the turn without guessing --
+        the same per-branch choice `_my_question` makes, seen from inside
+        the branch."""
+        e = _keep(e, S)
+        mine = S & ~(1 << e) if e >= 0 else S
+        wait = self.value(S, e, a_me, a_opp, OPP, m_fail)
+        if a_me == 0 or mine == 0:
+            return {"p_win": wait, "decision": "end_turn", "direct": None, "end_turn_p_win": wait, "questions": []}
+        v, g = self.best_my_guess(S, mine, a_me, a_opp, m_fail)
+        decision = "guess_now" if v >= wait else "end_turn"
+        return {
+            "p_win": max(v, wait), "decision": decision, "direct": {"g": g, "p_win": v},
+            "end_turn_p_win": wait, "questions": [],
+        }
+
+    def analyze_opp_turn(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int) -> dict:
+        """The opponent is to move: nothing for me to play, only my odds."""
+        v = self.value(S, _keep(e, S), a_me, a_opp, OPP, m_fail)
+        return {"p_win": v, "decision": "opp_turn", "direct": None, "questions": []}
+
 
 def evaluate_endgame(
     solver: DigitcodeSolver, clue: Clue, a_me: int, a_opp: int,
     my_excluded: FrozenSet[Candidate], opp_fail_pool_size: int = 0, *,
+    phase: str = PHASE_MY_TURN,
     n_max: int = ENDGAME_N_MAX, time_budget_s: float = ENDGAME_TIME_BUDGET_S,
     should_cancel: Callable[[], bool] = _never,
 ) -> Optional[dict]:
     """Display-ready endgame recommendation, or None when the public pool
     is empty or larger than `n_max`. `solver` must already be propagated
-    for `clue`."""
+    for `clue`. `phase` says where in the turn order the board is (see the
+    PHASE_* constants): only PHASE_MY_TURN ranks questions."""
     universe = build_universe(solver, clue, n_max, should_cancel)
     if universe is None:
         return None
@@ -338,8 +369,13 @@ def evaluate_endgame(
     engine = EndgameSolver(
         n, questions, deadline=time.monotonic() + time_budget_s, should_cancel=should_cancel,
     )
+    analyzers = {
+        PHASE_MY_TURN: engine.analyze,
+        PHASE_MY_POST_QUESTION: engine.analyze_post_question,
+        PHASE_OPP_TURN: engine.analyze_opp_turn,
+    }
     try:
-        raw = engine.analyze(full, e, a_me, a_opp, opp_fail_pool_size)
+        raw = analyzers[phase](full, e, a_me, a_opp, opp_fail_pool_size)
     except EndgameBudgetExceeded:
         return {"complete": False, "n_public": n}
 
@@ -363,10 +399,12 @@ def evaluate_endgame(
     direct = raw["direct"]
     return {
         "complete": True,
+        "phase": phase,
         "n_public": n,
         "n_mine": mine.bit_count(),
         "p_win": raw["p_win"],
         "decision": raw["decision"],
+        "end_turn_p_win": raw.get("end_turn_p_win"),
         "guess_now": (
             {"code": code_to_string(candidates[direct["g"]]), "p_win": direct["p_win"]}
             if direct is not None else None

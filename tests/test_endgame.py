@@ -258,3 +258,53 @@ def test_evaluate_endgame_reports_incomplete_on_budget_overrun():
     s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
     res = evaluate_endgame(s, Clue(), 2, 2, frozenset(), time_budget_s=-1.0)
     assert res == {"complete": False, "n_public": 6}
+
+
+# --- turn phases ------------------------------------------------------------
+
+from digitcode.endgame import PHASE_MY_POST_QUESTION, PHASE_MY_TURN, PHASE_OPP_TURN
+
+
+def test_post_question_phase_compares_guessing_with_ending_the_turn():
+    # N2, no question: guessing now wins 1/2 and, if wrong, the opponent must
+    # guess 1/2 before I win -> 3/4. Ending the turn: the opponent guesses
+    # 1/2; if wrong, it failed on this very pool, so after my own miss its
+    # next guess is certain -> 1/2 * 1/2 = 1/4.
+    eng = _toy(2, [], **FULL_FLAGS)
+    res = eng.analyze_post_question(3, -1, 2, 2, 0)
+    assert res["decision"] == "guess_now"
+    assert res["p_win"] == pytest.approx(0.75)
+    assert res["end_turn_p_win"] == pytest.approx(0.25)
+    assert res["questions"] == []
+
+
+def test_post_question_phase_without_attempts_ends_the_turn():
+    eng = _toy(2, [], **FULL_FLAGS)
+    res = eng.analyze_post_question(3, -1, 0, 1, 0)
+    assert res["decision"] == "end_turn"
+    assert res["direct"] is None
+    assert res["p_win"] == 0.0
+
+
+def test_opp_turn_phase_reports_my_value_with_the_opponent_to_move():
+    eng = _toy(2, [], **FULL_FLAGS)
+    res = eng.analyze_opp_turn(3, -1, 2, 2, 0)
+    assert res["decision"] == "opp_turn"
+    assert res["p_win"] == pytest.approx(0.25)
+
+
+def test_evaluate_endgame_phases():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2}})
+    mine = evaluate_endgame(s, Clue(), 2, 2, frozenset())
+    assert mine["phase"] == PHASE_MY_TURN
+
+    post = evaluate_endgame(s, Clue(), 2, 2, frozenset(), phase=PHASE_MY_POST_QUESTION)
+    assert post["phase"] == PHASE_MY_POST_QUESTION
+    assert post["decision"] in ("guess_now", "end_turn")
+    assert post["best_question"] is None and post["ranked_questions"] == []
+    assert post["p_win"] == pytest.approx(max(post["guess_now"]["p_win"], post["end_turn_p_win"]))
+
+    opp = evaluate_endgame(s, Clue(), 2, 2, frozenset(), phase=PHASE_OPP_TURN)
+    assert opp["decision"] == "opp_turn"
+    assert opp["guess_now"] is None
+    assert opp["p_win"] == pytest.approx(post["end_turn_p_win"])

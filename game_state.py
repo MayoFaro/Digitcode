@@ -5,7 +5,13 @@ from typing import Callable
 from .mapping import POSITIONS, ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
 from .solver import Cancelled, DigitcodeSolver, Clue
 from .strategy import evaluate_race_strategy
-from .endgame import OPP_FAIL_COUNT_CAP, evaluate_endgame
+from .endgame import (
+    OPP_FAIL_COUNT_CAP,
+    PHASE_MY_POST_QUESTION,
+    PHASE_MY_TURN,
+    PHASE_OPP_TURN,
+    evaluate_endgame,
+)
 
 # Cap for the per-question solution-count display (how many solutions each
 # reachable answer could leave). Must stay a lower bound, never a fabricated
@@ -93,6 +99,14 @@ def _existing_comparison(comparisons, left, right):
         if (a, b) == (left, right) or (a, b) == (right, left):
             return entry
     return None
+
+
+def _count_questions(clue: Clue) -> int:
+    """Every entered clue is the answer to one question asked in the game."""
+    return (
+        len(clue.row_totals) + len(clue.col_totals) + len(clue.parity)
+        + len(clue.comparisons) + len(clue.segment_state)
+    )
 
 
 def clone_clue(c: Clue) -> Clue:
@@ -230,6 +244,15 @@ class GameState:
         # the pool) -- see endgame.opp_hit_probability. Only the first failure
         # matters: a second one leaves it at 0 attempts, a terminal state.
         self.opp_fail_pool_size = 0
+        # Turn order (see turn_phase). Turns are counted from the questions
+        # entered (one per turn, alternating from the starting player) plus
+        # the turns spent on a guess without a question; `turn_closed` says
+        # the player of the latest turn has already guessed and failed, so
+        # the turn has passed. Like the attempts, none of this is restored
+        # by undo -- the "l'adversaire débute" toggle is the manual resync.
+        self.opp_starts = False
+        self.extra_turns = 0
+        self.turn_closed = False
 
     def payload(self) -> dict:
         return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
@@ -343,7 +366,7 @@ class GameState:
     @staticmethod
     def build_endgame_from(
         clue: Clue, a_me: int, a_opp: int, excluded: frozenset, opp_fail_pool_size: int,
-        should_cancel: Callable[[], bool] = lambda: False,
+        should_cancel: Callable[[], bool] = lambda: False, phase: str = PHASE_MY_TURN,
     ) -> dict | None:
         """Exact endgame recommendation (see endgame.evaluate_endgame), or
         None when the board still has more than endgame.ENDGAME_N_MAX
@@ -354,13 +377,49 @@ class GameState:
         solver = DigitcodeSolver()
         solver.propagate(clue)  # may raise ValueError; callers must catch it
         return evaluate_endgame(
-            solver, clue, a_me, a_opp, excluded, opp_fail_pool_size, should_cancel=should_cancel,
+            solver, clue, a_me, a_opp, excluded, opp_fail_pool_size,
+            phase=phase, should_cancel=should_cancel,
         )
 
     def endgame(self) -> dict | None:
         return self.build_endgame_from(
             self.clue, self.a_me, self.a_opp, self.my_excluded, self.opp_fail_pool_size,
+            phase=self.turn_phase(),
         )
+
+    def _last_turn_owner(self) -> str | None:
+        """"me" / "opp" for the player of the latest turn, None before any."""
+        turns = _count_questions(self.clue) + self.extra_turns
+        if turns == 0:
+            return None
+        last_is_starter = turns % 2 == 1
+        return "me" if last_is_starter != self.opp_starts else "opp"
+
+    def turn_phase(self) -> str:
+        owner = self._last_turn_owner()
+        if owner is None:
+            return PHASE_OPP_TURN if self.opp_starts else PHASE_MY_TURN
+        if owner == "me":
+            return PHASE_OPP_TURN if self.turn_closed else PHASE_MY_POST_QUESTION
+        return PHASE_MY_TURN
+
+    def _record_failed_guess(self, who: str) -> None:
+        """A failed guess ends that player's turn: right after its own
+        question, or as a whole turn spent guessing without asking."""
+        if self._last_turn_owner() == who:
+            self.turn_closed = True
+            return
+        self.extra_turns += 1
+        if self._last_turn_owner() == who:
+            self.turn_closed = True
+        else:
+            # Inconsistent with the tracked order (the other player guessed
+            # twice in a row): leave it for the user to resync via the toggle.
+            self.extra_turns -= 1
+
+    def set_opp_starts(self, value: bool) -> dict:
+        self.opp_starts = bool(value)
+        return self.payload()
 
     def _apply_mutation(self, clue_type: str, /, **fields) -> None:
         # `clue_type` (and `self`) are positional-only so that a `fields`
@@ -393,6 +452,7 @@ class GameState:
                 raise ValueError(f"value for {clue_type} must be an integer, got: {fields['value']!r}")
 
         self.history.append(clone_clue(self.clue))
+        self.turn_closed = False  # a new question opens a new turn
         clue = self.clue
         if clue_type == "row_total":
             if fields.get("value") is None:
@@ -495,12 +555,14 @@ class GameState:
                 self.opp_fail_pool_size = solver.count_solutions_capped(self.clue, cap=OPP_FAIL_COUNT_CAP)
             if self.a_opp > 0:
                 self.a_opp -= 1
+                self._record_failed_guess("opp")
         elif who == "me":
             if "candidate" not in body:
                 raise ValueError("candidate field required when who='me'")
             if self.a_me > 0:
                 self.my_excluded = self.my_excluded | {tuple(body["candidate"])}
                 self.a_me -= 1
+                self._record_failed_guess("me")
         else:
             raise ValueError("who must be 'me' or 'opponent'")
         return self.payload()
@@ -517,4 +579,7 @@ class GameState:
         self.a_opp = 2
         self.my_excluded = frozenset()
         self.opp_fail_pool_size = 0
+        self.opp_starts = False
+        self.extra_turns = 0
+        self.turn_closed = False
         return self.payload()

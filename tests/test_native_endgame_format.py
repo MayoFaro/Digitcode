@@ -50,3 +50,30 @@ def test_incomplete_result():
 
 def test_pending_text_mentions_the_endgame():
     assert "Fin de partie" in ENDGAME_PENDING_TEXT
+
+
+def _phase_result(phase, decision, p_win, guess_p, end_p):
+    return {
+        "complete": True, "phase": phase, "n_public": 4, "n_mine": 4, "p_win": p_win,
+        "decision": decision, "end_turn_p_win": end_p,
+        "guess_now": {"code": "120 983", "p_win": guess_p} if guess_p is not None else None,
+        "best_question": None, "ranked_questions": [],
+    }
+
+
+def test_post_question_guess_now():
+    text = format_endgame(_phase_result("my_post_question", "guess_now", 0.6, 0.6, 0.45))
+    assert "Question posée ce tour : proposer 120 983 maintenant (60%)" in text
+    assert "(finir le tour sans proposer : 45%)" in text
+
+
+def test_post_question_end_turn():
+    text = format_endgame(_phase_result("my_post_question", "end_turn", 0.55, 0.40, 0.55))
+    assert "Question posée ce tour : ne rien proposer, finir le tour (55%)" in text
+    assert "(proposer 120 983 : 40%)" in text
+
+
+def test_opp_turn():
+    text = format_endgame(_phase_result("opp_turn", "opp_turn", 0.3, None, None))
+    assert "Tour de l'adversaire" in text and "30%" in text
+    assert "➡️" not in text

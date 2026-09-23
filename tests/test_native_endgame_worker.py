@@ -5,7 +5,9 @@ from tests.test_game_state import _n4_state
 
 
 def _worker(gs, generation=1):
-    return EndgameWorker(gs.clue, gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size, generation)
+    return EndgameWorker(
+        gs.clue, gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size, generation, phase=gs.turn_phase(),
+    )
 
 
 def test_run_emits_the_endgame_result(qapp):

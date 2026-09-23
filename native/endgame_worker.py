@@ -7,6 +7,7 @@ from typing import FrozenSet
 
 from PySide6.QtCore import QThread, Signal
 
+from ..endgame import PHASE_MY_TURN
 from ..game_state import GameState
 from ..solver import Cancelled, Clue
 
@@ -23,7 +24,7 @@ class EndgameWorker(QThread):
 
     def __init__(
         self, clue: Clue, a_me: int, a_opp: int, excluded: FrozenSet, opp_fail_pool_size: int,
-        generation: int, parent=None,
+        generation: int, phase: str = PHASE_MY_TURN, parent=None,
     ) -> None:
         super().__init__(parent)
         self._clue = clue
@@ -32,6 +33,7 @@ class EndgameWorker(QThread):
         self._excluded = excluded
         self._opp_fail_pool_size = opp_fail_pool_size
         self.generation = generation
+        self._phase = phase
         self._cancel_event = threading.Event()
 
     def cancel(self) -> None:
@@ -43,7 +45,7 @@ class EndgameWorker(QThread):
         try:
             result = GameState.build_endgame_from(
                 self._clue, self._a_me, self._a_opp, self._excluded, self._opp_fail_pool_size,
-                should_cancel=self._cancel_event.is_set,
+                should_cancel=self._cancel_event.is_set, phase=self._phase,
             )
         except Cancelled:
             return

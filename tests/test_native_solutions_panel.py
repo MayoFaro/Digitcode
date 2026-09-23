@@ -109,3 +109,31 @@ def test_endgame_label_is_hidden_by_default_and_toggles(qapp):
     assert panel.endgame_label.text() == "Fin de partie — test"
     panel.hide_endgame()
     assert not panel.endgame_label.isVisible()
+
+
+def test_opp_starts_checkbox_is_unchecked_by_default_and_updates_the_state(qapp):
+    gs = GameState()
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    panel.refresh(gs.payload())
+    assert not panel.opp_starts_checkbox.isChecked()
+    assert panel.turn_label.text() == "Tour : à moi"
+    panel.opp_starts_checkbox.setChecked(True)
+    assert gs.opp_starts is True
+    panel.refresh(gs.payload())
+    assert panel.turn_label.text() == "Tour : à l'adversaire"
+
+
+def test_turn_label_after_my_question(qapp):
+    gs = GameState()
+    gs.apply_clue_fast("parity", pos="T", value="Pair")
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    panel.refresh(gs.payload())
+    assert panel.turn_label.text() == "Tour : à moi — question posée, proposer ou finir le tour"
+
+
+def test_refresh_syncs_the_checkbox_with_the_state(qapp):
+    gs = GameState()
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    gs.opp_starts = True
+    panel.refresh(gs.payload())
+    assert panel.opp_starts_checkbox.isChecked()

@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
         gs = self.game_state
         worker = EndgameWorker(
             clone_clue(gs.clue), gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size,
-            self._endgame_generation,
+            self._endgame_generation, phase=gs.turn_phase(),
         )
         worker.finished_ok.connect(self._on_endgame_finished)
         worker.failed.connect(self._on_endgame_failed)

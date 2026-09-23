@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -13,10 +14,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...endgame import PHASE_MY_POST_QUESTION, PHASE_OPP_TURN
 from ...game_state import GameState
 from .question_format import format_ev_question_label, format_question_label
 
 MAX_ALTERNATIVES_SHOWN = 10
+
+TURN_LABELS = {
+    PHASE_OPP_TURN: "Tour : à l'adversaire",
+    PHASE_MY_POST_QUESTION: "Tour : à moi — question posée, proposer ou finir le tour",
+}
+MY_TURN_LABEL = "Tour : à moi"
 
 
 class SolutionsPanel(QWidget):
@@ -33,6 +41,19 @@ class SolutionsPanel(QWidget):
         self.solutions_list_label = QLabel()
         self.solutions_list_label.setWordWrap(True)
         layout.addWidget(self.solutions_list_label)
+
+        # Who moves (GameState.turn_phase): counted from the questions
+        # entered, alternating from the starting player. Editable mid-game,
+        # which is also how to resync a miscounted turn.
+        turn_row = QHBoxLayout()
+        self.turn_label = QLabel()
+        turn_row.addWidget(self.turn_label)
+        self.opp_starts_checkbox = QCheckBox("L'adversaire débute")
+        self.opp_starts_checkbox.toggled.connect(
+            lambda checked: self._run(lambda: self.game_state.set_opp_starts(checked))
+        )
+        turn_row.addWidget(self.opp_starts_checkbox)
+        layout.addLayout(turn_row)
 
         self.p_win_label = QLabel()
         layout.addWidget(self.p_win_label)
@@ -117,6 +138,11 @@ class SolutionsPanel(QWidget):
 
     def refresh(self, payload: dict) -> None:
         self._solutions = payload["solutions"]
+
+        self.turn_label.setText(TURN_LABELS.get(self.game_state.turn_phase(), MY_TURN_LABEL))
+        self.opp_starts_checkbox.blockSignals(True)
+        self.opp_starts_checkbox.setChecked(self.game_state.opp_starts)
+        self.opp_starts_checkbox.blockSignals(False)
 
         n_total = payload["n_solutions_total"]
         self.solutions_list_label.setText(

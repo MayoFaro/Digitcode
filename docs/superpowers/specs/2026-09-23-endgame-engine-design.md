@@ -332,3 +332,23 @@ marcher tel quel).
   nœuds internes seule 0,4984, croyance sur l'échec adverse seule 0,5031,
   les trois extensions ensemble 0,4984. Un banc « contre la politique de
   production » est la prochaine étape (voir « Hors périmètre v1 »).
+
+## Évolution — tour de jeu (2026-09-23, retour d'usage)
+
+Le bloc « Fin de partie » supposait toujours « à moi de jouer, question pas
+encore posée ». En partie réelle, on saisit la réponse à sa propre question
+puis on regarde l'assistant : il reste alors seulement « proposer maintenant
+ou finir le tour ».
+
+- Case « L'adversaire débute » (Solutions), décochée par défaut, modifiable
+  en cours de partie (elle sert aussi à resynchroniser un décompte faux).
+- `GameState.turn_phase()` déduit la phase : chaque indice saisi = une
+  question, les tours alternent depuis le joueur qui débute ; un essai raté
+  termine le tour de son auteur (juste après sa question, ou tour entier
+  sans question). Non restauré par `undo`, comme les tentatives.
+- Trois phases passées au moteur : `my_turn` (analyse complète),
+  `my_post_question` (proposer quel code, ou finir le tour : valeurs des deux
+  options), `opp_turn` (seulement P(je gagne), rien à jouer).
+- Hypothèse : chaque indice saisi correspond à une question posée en jeu
+  (pas d'indice donné d'office en début de partie). Sinon, cocher/décocher
+  la case pour recaler.

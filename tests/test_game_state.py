@@ -362,7 +362,9 @@ def test_endgame_on_a_small_board_returns_a_recommendation():
     res = gs.endgame()
     assert res["complete"] is True
     assert res["n_public"] == 4
-    assert res["decision"] in ("guess_now", "question")
+    # 9 clues entered with me starting: my 9th question was just answered.
+    assert res["phase"] == "my_post_question"
+    assert res["decision"] in ("guess_now", "end_turn")
 
 
 def test_endgame_on_a_wide_board_returns_none():
@@ -382,3 +384,94 @@ def test_endgame_passes_the_opponent_failure_to_the_engine(monkeypatch):
     monkeypatch.setattr(game_state_module, "evaluate_endgame", spy)
     gs.endgame()
     assert seen["args"] == (2, 1, 4)
+
+
+# --- turn tracking ----------------------------------------------------------
+
+def _ask(gs, pos):
+    # One cheap, always-valid question on a fresh board.
+    gs.apply_clue_fast("parity", pos=pos, value="Pair")
+
+
+def test_fresh_board_is_my_turn_or_the_opponents():
+    gs = GameState()
+    assert gs.turn_phase() == "my_turn"
+    gs.opp_starts = True
+    assert gs.turn_phase() == "opp_turn"
+
+
+def test_questions_alternate_between_the_players():
+    gs = GameState()
+    _ask(gs, "T")                 # my question
+    assert gs.turn_phase() == "my_post_question"
+    _ask(gs, "U")                 # the opponent's question
+    assert gs.turn_phase() == "my_turn"
+
+
+def test_my_failed_guess_after_my_question_ends_my_turn():
+    gs = GameState()
+    _ask(gs, "T")
+    gs.guess_failed({"who": "me", "candidate": [1, 2, 3, 4, 5, 6]})
+    assert gs.turn_phase() == "opp_turn"
+    _ask(gs, "U")                 # the opponent's question
+    assert gs.turn_phase() == "my_turn"
+
+
+def test_my_failed_guess_without_a_question_is_a_whole_turn():
+    gs = GameState()
+    gs.guess_failed({"who": "me", "candidate": [1, 2, 3, 4, 5, 6]})
+    assert gs.turn_phase() == "opp_turn"
+    _ask(gs, "T")                 # the opponent's question
+    assert gs.turn_phase() == "my_turn"
+
+
+def test_opponent_failed_guess_without_a_question_is_a_whole_turn():
+    gs = GameState()
+    _ask(gs, "T")                 # my question, I end my turn without guessing
+    gs.guess_failed({"who": "opponent"})
+    assert gs.turn_phase() == "my_turn"
+    _ask(gs, "U")                 # my next question
+    assert gs.turn_phase() == "my_post_question"
+
+
+def test_opponent_failed_guess_after_its_question_keeps_the_order():
+    gs = GameState()
+    gs.opp_starts = True
+    _ask(gs, "T")                 # the opponent's question
+    gs.guess_failed({"who": "opponent"})
+    assert gs.turn_phase() == "my_turn"
+    _ask(gs, "U")                 # my question
+    assert gs.turn_phase() == "my_post_question"
+
+
+def test_set_opp_starts_flips_the_turn_order_mid_game():
+    gs = GameState()
+    _ask(gs, "T")
+    assert gs.turn_phase() == "my_post_question"
+    payload = gs.set_opp_starts(True)
+    assert gs.opp_starts is True
+    assert gs.turn_phase() == "my_turn"
+    assert "n_solutions_total" in payload
+
+
+def test_reset_restores_the_default_turn_order():
+    gs = GameState()
+    gs.set_opp_starts(True)
+    gs.guess_failed({"who": "opponent"})
+    gs.reset()
+    assert gs.opp_starts is False
+    assert gs.turn_phase() == "my_turn"
+
+
+def test_endgame_passes_the_turn_phase_to_the_engine(monkeypatch):
+    gs = _n4_state()
+    seen = {}
+    real = game_state_module.evaluate_endgame
+
+    def spy(*args, **kw):
+        seen["phase"] = kw.get("phase")
+        return real(*args, **kw)
+
+    monkeypatch.setattr(game_state_module, "evaluate_endgame", spy)
+    gs.endgame()
+    assert seen["phase"] == gs.turn_phase() == "my_post_question"
