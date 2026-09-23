@@ -5,6 +5,7 @@ from typing import Callable
 from .mapping import POSITIONS, ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
 from .solver import Cancelled, DigitcodeSolver, Clue
 from .strategy import evaluate_race_strategy
+from .endgame import OPP_FAIL_COUNT_CAP, evaluate_endgame
 
 # Cap for the per-question solution-count display (how many solutions each
 # reachable answer could leave). Must stay a lower bound, never a fabricated
@@ -223,6 +224,12 @@ class GameState:
         self.a_me = 2
         self.a_opp = 2
         self.my_excluded: frozenset = frozenset()
+        # Public solution count when the opponent failed its FIRST guess (0 =
+        # no failure yet). The endgame engine needs it to estimate the
+        # opponent's odds on its next guess (its failed code may still be in
+        # the pool) -- see endgame.opp_hit_probability. Only the first failure
+        # matters: a second one leaves it at 0 attempts, a terminal state.
+        self.opp_fail_pool_size = 0
 
     def payload(self) -> dict:
         return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
@@ -332,6 +339,28 @@ class GameState:
                 if col not in clue.col_totals
             },
         }
+
+    @staticmethod
+    def build_endgame_from(
+        clue: Clue, a_me: int, a_opp: int, excluded: frozenset, opp_fail_pool_size: int,
+        should_cancel: Callable[[], bool] = lambda: False,
+    ) -> dict | None:
+        """Exact endgame recommendation (see endgame.evaluate_endgame), or
+        None when the board still has more than endgame.ENDGAME_N_MAX
+        public solutions. Deliberately separate from build_payload_from: it
+        may take seconds (budget: endgame.ENDGAME_TIME_BUDGET_S), so the
+        native app runs it on its own worker after the fast payload is
+        already on screen."""
+        solver = DigitcodeSolver()
+        solver.propagate(clue)  # may raise ValueError; callers must catch it
+        return evaluate_endgame(
+            solver, clue, a_me, a_opp, excluded, opp_fail_pool_size, should_cancel=should_cancel,
+        )
+
+    def endgame(self) -> dict | None:
+        return self.build_endgame_from(
+            self.clue, self.a_me, self.a_opp, self.my_excluded, self.opp_fail_pool_size,
+        )
 
     def _apply_mutation(self, clue_type: str, /, **fields) -> None:
         # `clue_type` (and `self`) are positional-only so that a `fields`
@@ -460,6 +489,10 @@ class GameState:
     def guess_failed(self, body: dict) -> dict:
         who = body.get("who")
         if who == "opponent":
+            if self.a_opp == 2:
+                solver = DigitcodeSolver()
+                solver.propagate(self.clue)
+                self.opp_fail_pool_size = solver.count_solutions_capped(self.clue, cap=OPP_FAIL_COUNT_CAP)
             if self.a_opp > 0:
                 self.a_opp -= 1
         elif who == "me":
@@ -483,4 +516,5 @@ class GameState:
         self.a_me = 2
         self.a_opp = 2
         self.my_excluded = frozenset()
+        self.opp_fail_pool_size = 0
         return self.payload()

@@ -314,3 +314,71 @@ def test_ev_plus_questions_reproduces_the_real_game_scenario():
     xy = labels["Qui est plus grand, X ou Y ?"]
     assert xy["p_win"] == pytest.approx(1 / 12)
     assert xy["p_trap"] == 0.0
+
+
+def _n4_state():
+    # Same N=4 fixture as tests/test_native_solutions_panel.py.
+    gs = GameState()
+    for row, val in (("K", 6), ("S", 1)):
+        gs.apply_clue("row_total", row=row, value=val)
+    for col, val in (("H", 3), ("C", 3), ("E", 1)):
+        gs.apply_clue("col_total", col=col, value=val)
+    for pos, par in (("T", "Pair"), ("W", "Pair"), ("Y", "Pair"), ("X", "Impair")):
+        gs.apply_clue("parity", pos=pos, value=par)
+    return gs
+
+
+def test_opponent_first_failure_records_the_public_pool_size():
+    gs = _n4_state()
+    assert gs.opp_fail_pool_size == 0
+    gs.guess_failed({"who": "opponent"})
+    assert gs.opp_fail_pool_size == 4
+    assert gs.a_opp == 1
+
+
+def test_opponent_second_failure_keeps_the_first_pool_size():
+    gs = _n4_state()
+    gs.guess_failed({"who": "opponent"})
+    gs.guess_failed({"who": "opponent"})
+    assert gs.opp_fail_pool_size == 4
+    assert gs.a_opp == 0
+
+
+def test_opponent_failure_on_a_wide_board_is_capped():
+    gs = GameState()
+    gs.guess_failed({"who": "opponent"})
+    assert gs.opp_fail_pool_size == 1000
+
+
+def test_reset_clears_the_opponent_failure_pool_size():
+    gs = _n4_state()
+    gs.guess_failed({"who": "opponent"})
+    gs.reset()
+    assert gs.opp_fail_pool_size == 0
+
+
+def test_endgame_on_a_small_board_returns_a_recommendation():
+    gs = _n4_state()
+    res = gs.endgame()
+    assert res["complete"] is True
+    assert res["n_public"] == 4
+    assert res["decision"] in ("guess_now", "question")
+
+
+def test_endgame_on_a_wide_board_returns_none():
+    assert GameState().endgame() is None
+
+
+def test_endgame_passes_the_opponent_failure_to_the_engine(monkeypatch):
+    gs = _n4_state()
+    gs.guess_failed({"who": "opponent"})
+    seen = {}
+    real = game_state_module.evaluate_endgame
+
+    def spy(solver, clue, a_me, a_opp, excluded, opp_fail_pool_size=0, **kw):
+        seen["args"] = (a_me, a_opp, opp_fail_pool_size)
+        return real(solver, clue, a_me, a_opp, excluded, opp_fail_pool_size, **kw)
+
+    monkeypatch.setattr(game_state_module, "evaluate_endgame", spy)
+    gs.endgame()
+    assert seen["args"] == (2, 1, 4)
