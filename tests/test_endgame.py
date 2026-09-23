@@ -148,3 +148,90 @@ def test_should_cancel_raises_cancelled():
     eng = _toy(4, [(A | B, C | D)], should_cancel=lambda: True, **FULL_FLAGS)
     with pytest.raises(Cancelled):
         eng.value(15, -1, 2, 2, ME, 0)
+
+
+from digitcode.endgame import evaluate_endgame
+from digitcode.strategy import evaluate_race_strategy
+
+
+def _legacy_root_p_win(solver):
+    candidates, questions = build_universe(solver, Clue())
+    eng = EndgameSolver(len(candidates), questions, **LEGACY_FLAGS)
+    return eng.analyze((1 << len(candidates)) - 1, -1, 2, 2, 0)["p_win"]
+
+
+@pytest.mark.parametrize("free", [
+    {"X": {5, 6}, "Y": {1, 2}},      # N=4 (old engine: guess now, 0.625)
+    {"X": {5, 6}, "Y": {1, 2, 3}},   # N=6 (old engine: 0.583, ~3 s)
+])
+def test_legacy_mode_matches_the_existing_exact_engine_live(free):
+    s = make_solver(free)
+    old = evaluate_race_strategy(
+        s, Clue(), 2, 2, n_exact_max=9, n_beam_max=12, time_budget_s=120, node_budget=10**7,
+    )
+    assert old["exact"]
+    assert _legacy_root_p_win(s) == pytest.approx(old["p_win"])
+
+
+@pytest.mark.parametrize("free, old_p_win", [
+    # Measured 2026-09-23 with strategy.evaluate_race_strategy in full exact
+    # mode (21 s and 23 s -- too slow to run live in the suite).
+    ({"Y": {6, 7, 8, 9, 0, 1}}, 0.75),
+    ({"X": {5, 6}, "Y": {1, 2, 3, 4}}, 0.625),
+])
+def test_legacy_mode_matches_the_existing_exact_engine_recorded(free, old_p_win):
+    assert _legacy_root_p_win(make_solver(free)) == pytest.approx(old_p_win)
+
+
+def test_analyze_prefers_guessing_now_on_the_n4_board():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2}})
+    res = evaluate_endgame(s, Clue(), 2, 2, frozenset())
+    assert res["complete"] is True
+    assert res["n_public"] == 4 and res["n_mine"] == 4
+    assert res["decision"] == "guess_now"
+    assert res["p_win"] == pytest.approx(res["guess_now"]["p_win"])
+    assert res["guess_now"]["p_win"] >= res["best_question"]["p_win"]
+    assert len(res["guess_now"]["code"]) == 7  # "123 456"
+
+
+def test_best_question_branches_are_consistent():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
+    res = evaluate_endgame(s, Clue(), 2, 2, frozenset())
+    best = res["best_question"]
+    assert best["label"] == res["ranked_questions"][0]["label"]
+    assert sum(b["prob"] for b in best["branches"]) == pytest.approx(1.0)
+    assert sum(b["n"] for b in best["branches"]) == res["n_mine"]
+    assert sum(b["prob"] * b["value"] for b in best["branches"]) == pytest.approx(best["p_win"])
+    for b in best["branches"]:
+        assert (b["code"] is not None) == (b["action"] == "guess")
+    p_wins = [q["p_win"] for q in res["ranked_questions"]]
+    assert p_wins == sorted(p_wins, reverse=True)
+
+
+def test_my_failed_guess_is_removed_from_my_pool_only():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
+    candidates, _ = build_universe(s, Clue())
+    res = evaluate_endgame(s, Clue(), 1, 2, frozenset({candidates[0]}))
+    assert res["n_public"] == 6
+    assert res["n_mine"] == 5
+    assert res["guess_now"]["code"] != code_to_string(candidates[0])
+
+
+def test_no_attempts_left_gives_decision_none():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2}})
+    candidates, _ = build_universe(s, Clue())
+    res = evaluate_endgame(s, Clue(), 0, 1, frozenset(candidates[:2]))
+    assert res["decision"] == "none"
+    assert res["p_win"] == 0.0
+    assert res["guess_now"] is None
+
+
+def test_evaluate_endgame_returns_none_above_n_max():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
+    assert evaluate_endgame(s, Clue(), 2, 2, frozenset(), n_max=5) is None
+
+
+def test_evaluate_endgame_reports_incomplete_on_budget_overrun():
+    s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
+    res = evaluate_endgame(s, Clue(), 2, 2, frozenset(), time_budget_s=-1.0)
+    assert res == {"complete": False, "n_public": 6}

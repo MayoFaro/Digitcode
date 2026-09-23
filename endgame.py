@@ -280,3 +280,90 @@ class EndgameSolver:
                 total += sub.bit_count() / n_mine * min(wait, guess)
             options.append(total)
         return min(options)
+
+    # --- root -----------------------------------------------------------
+
+    def analyze(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int) -> dict:
+        """Every option at the root (my turn), with raw candidate/question
+        indices. The root always offers the direct guess, whatever
+        `interior_direct_guess` says -- strategy.py does the same, which
+        is what makes the legacy-mode comparison exact."""
+        e = _keep(e, S)
+        mine = S & ~(1 << e) if e >= 0 else S
+        if a_me == 0 or mine == 0:
+            p = 0.5 if (a_me == 0 and a_opp == 0) else 0.0
+            return {"p_win": p, "decision": "none", "direct": None, "questions": []}
+        v, g = self.best_my_guess(S, mine, a_me, a_opp, m_fail)
+        direct = {"g": g, "p_win": v}
+        questions = []
+        for qi, q in enumerate(self.questions):
+            if sum(1 for c in q.classes if c & S) <= 1:
+                continue
+            qv, branches = self._my_question(S, e, mine, q, a_me, a_opp, m_fail)
+            questions.append({"qi": qi, "p_win": qv, "branches": branches})
+        questions.sort(key=lambda r: -r["p_win"])
+        if not questions or direct["p_win"] >= questions[0]["p_win"]:
+            return {"p_win": direct["p_win"], "decision": "guess_now", "direct": direct, "questions": questions}
+        return {"p_win": questions[0]["p_win"], "decision": "question", "direct": direct, "questions": questions}
+
+
+def evaluate_endgame(
+    solver: DigitcodeSolver, clue: Clue, a_me: int, a_opp: int,
+    my_excluded: FrozenSet[Candidate], opp_fail_pool_size: int = 0, *,
+    n_max: int = ENDGAME_N_MAX, time_budget_s: float = ENDGAME_TIME_BUDGET_S,
+    should_cancel: Callable[[], bool] = _never,
+) -> Optional[dict]:
+    """Display-ready endgame recommendation, or None when the public pool
+    is empty or larger than `n_max`. `solver` must already be propagated
+    for `clue`."""
+    universe = build_universe(solver, clue, n_max, should_cancel)
+    if universe is None:
+        return None
+    candidates, questions = universe
+    n = len(candidates)
+    full = (1 << n) - 1
+    index = {c: i for i, c in enumerate(candidates)}
+    excluded_idx = sorted(index[c] for c in my_excluded if c in index)
+    e = excluded_idx[0] if excluded_idx else NO_CANDIDATE
+    mine = full
+    for i in excluded_idx:
+        mine &= ~(1 << i)
+    engine = EndgameSolver(
+        n, questions, deadline=time.monotonic() + time_budget_s, should_cancel=should_cancel,
+    )
+    try:
+        raw = engine.analyze(full, e, a_me, a_opp, opp_fail_pool_size)
+    except EndgameBudgetExceeded:
+        return {"complete": False, "n_public": n}
+
+    def fmt_question(r: dict, with_branches: bool) -> dict:
+        q = questions[r["qi"]]
+        out = {"qtype": q.qtype, "label": q.label, "p_win": r["p_win"]}
+        if with_branches:
+            out["branches"] = [
+                {
+                    "answer": q.answers[b["ci"]],
+                    "n": b["n"],
+                    "prob": b["prob"],
+                    "action": b["action"],
+                    "code": code_to_string(candidates[b["g"]]) if b["g"] is not None else None,
+                    "value": b["value"],
+                }
+                for b in r["branches"]
+            ]
+        return out
+
+    direct = raw["direct"]
+    return {
+        "complete": True,
+        "n_public": n,
+        "n_mine": mine.bit_count(),
+        "p_win": raw["p_win"],
+        "decision": raw["decision"],
+        "guess_now": (
+            {"code": code_to_string(candidates[direct["g"]]), "p_win": direct["p_win"]}
+            if direct is not None else None
+        ),
+        "best_question": fmt_question(raw["questions"][0], True) if raw["questions"] else None,
+        "ranked_questions": [fmt_question(r, False) for r in raw["questions"]],
+    }
