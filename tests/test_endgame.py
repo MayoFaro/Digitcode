@@ -57,6 +57,29 @@ def test_build_universe_returns_none_above_n_max():
     assert build_universe(s, Clue(), n_max=5) is None
 
 
+def test_build_universe_skips_a_question_that_does_not_cover_every_candidate(monkeypatch):
+    import digitcode.endgame as endgame_module
+
+    s = make_solver({"X": {5, 6}, "Y": {1, 2, 3}})
+    candidates_before, questions_before = build_universe(s, Clue())
+    assert questions_before, "sanity: this board normally has informative questions"
+
+    # Make one candidate consistent with NO answer of ANY question -- an
+    # (artificial) failure to cover the universe. Every question must then
+    # be dropped rather than searched over with probabilities summing < 1.
+    target = candidates_before[0]
+    real_code_consistent = endgame_module.code_consistent
+
+    def fake_code_consistent(code, clue):
+        if code == target:
+            return False
+        return real_code_consistent(code, clue)
+
+    monkeypatch.setattr(endgame_module, "code_consistent", fake_code_consistent)
+    _, questions_after = build_universe(s, Clue())
+    assert questions_after == []
+
+
 @pytest.mark.parametrize("s, m_fail, expected", [
     (3, 0, 1 / 3),       # no opponent failure: uniform over the public pool
     (2, 0, 0.5),

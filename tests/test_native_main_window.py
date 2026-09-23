@@ -351,3 +351,26 @@ def test_on_endgame_failed_shows_the_error(qapp):
     window.stack.setCurrentIndex(2)
     window._on_endgame_failed("boom", generation=window._endgame_generation)
     assert "boom" in window.solutions_panel.endgame_label.text()
+
+
+def test_endgame_worker_reference_is_cleared_once_it_finishes(qapp):
+    window = MainWindow(_n4_state())
+    window.show()
+    window.stack.setCurrentIndex(2)
+    worker = window._endgame_worker
+    assert worker is not None
+
+    worker.wait()
+    QApplication.processEvents()  # deliver finished_ok, then QThread.finished -> _cleanup_worker
+
+    assert window._endgame_worker is None
+    assert worker not in window._retired_workers
+
+    retired_before = len(window._retired_workers)
+    window._cancel_endgame()  # must not resurrect/append the dead worker
+    assert len(window._retired_workers) == retired_before
+
+    window._schedule_endgame({"n_solutions_total": 4})  # must not grow _retired_workers either
+    assert len(window._retired_workers) == retired_before
+    window._endgame_worker.wait()
+    QApplication.processEvents()

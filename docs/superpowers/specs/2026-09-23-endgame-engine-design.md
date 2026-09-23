@@ -198,6 +198,15 @@ Documenté comme limite, pas contourné en v1.
   l'adversaire a raté), renseigné dans `guess_failed(who="opponent")`,
   remis à zéro par `reset`. Si deux échecs adverses surviennent, la partie
   est terminale côté moteur, la valeur n'a plus d'importance.
+- **Ordre de saisie important** : `opp_fail_pool_size` est pris au moment
+  du clic sur « il a raté », pas au moment où l'adversaire a réellement
+  proposé son code. Si l'utilisateur enregistre l'échec adverse *avant*
+  d'avoir saisi la réponse à la question que l'adversaire a posée ce tour
+  (laquelle rétrécit le pool), `opp_fail_pool_size` est trop grand — la
+  probabilité de succès adverse est alors sous-estimée (optimiste pour
+  moi). Il faut donc toujours saisir d'abord la réponse à la question de
+  l'adversaire pour ce tour, puis cliquer « il a raté » (voir l'infobulle
+  du bouton dans `native/panels/solutions_panel.py`).
 - `undo` ne restaure aujourd'hui que le `Clue`, pas les tentatives ; le
   nouvel état suit la même règle (pas d'élargissement de périmètre ici).
 - `build_payload_from` : inchangé (résultat rapide actuel).
@@ -263,6 +272,10 @@ marcher tel quel).
 
 ## Hors périmètre v1 (pistes)
 
+- Banc de mesure « contre la politique de production » : comparer le
+  nouveau moteur non pas à un modèle legacy self-play, mais à
+  `strategy.evaluate_race_strategy` (beam pour N 6–9, heuristique 1-ply
+  pour N 10–20), ce qui manque aujourd'hui (voir « Évolution — mesures »).
 - Précalcul pendant le tour adverse (pour chacune de ses questions
   possibles) → réponse instantanée à mon tour.
 - Modèle d'adversaire paramétrable (« optimal » / « humain type » : par ex.
@@ -290,8 +303,32 @@ marcher tel quel).
   worst total for target<=20: 8.21s
 - Self-play exhaustif (chaque code secret × les deux ordres de jeu, 20
   plateaux N ≤ 12) : nouveau moteur contre modèle legacy (≡ strategy.py
-  exact) = 0.4975 ; contrôle nouveau contre nouveau = 0.5000.
+  exact) = 0,4975 sur 404 parties (`.venv/bin/python -m
+  tests.bench_endgame selfplay`).
+- **Calibration** (remplace l'ancien contrôle « nouveau contre nouveau »,
+  qui valait 0,5 par construction pour n'importe quel moteur
+  déterministe et ne prouvait rien) : pour chaque plateau, le `p_win`
+  prédit à la racine pour le premier joueur (`EndgameSolver(**NEW)
+  .analyze(...)["p_win"]`) est comparé au taux de victoire réel du
+  premier joueur en self-play nouveau-contre-nouveau, moyenné de façon
+  exhaustive sur toutes les vérités. Mesure du 2026-09-23 : réalisé ≥
+  prédit sur 19/20 plateaux — à titre informatif seulement (le modèle
+  est pessimiste sur l'adversaire, voir l'approximation ci-dessus, donc
+  le réalisé est en général ≥ le prédit, sans que ce soit une propriété
+  affirmée ou testée).
 - Le moteur legacy (toutes extensions coupées) reproduit exactement les
   `p_win` de `strategy.py` en mode exact sur les grilles de référence
   (tests/test_endgame.py).
 - « Passer » reste non modélisé (question ouverte 1).
+- **Limite des mesures ci-dessus.** La référence self-play est le modèle
+  **legacy exact** (strategy.py en mode exact désactivé des trois
+  extensions), pas la politique réellement utilisée par l'appli pour
+  N 6–20 (`strategy.evaluate_race_strategy` : beam pour N 6–9,
+  heuristique 1-ply pour N 10–20). Aucune mesure ne compare aujourd'hui le
+  nouveau moteur à cette politique de production. En self-play contre le
+  modèle legacy exact, le nouveau moteur ne fait globalement pas mieux
+  (≈0,50, voir OVERALL ci-dessus) ; l'ablation par extension (39 plateaux)
+  donne : choix du code proposé seul 0,4984, proposition directe aux
+  nœuds internes seule 0,4984, croyance sur l'échec adverse seule 0,5031,
+  les trois extensions ensemble 0,4984. Un banc « contre la politique de
+  production » est la prochaine étape (voir « Hors périmètre v1 »).

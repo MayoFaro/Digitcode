@@ -68,6 +68,9 @@ class SolutionsPanel(QWidget):
         self.a_opp_label = QLabel()
         attempts_row.addWidget(self.a_opp_label)
         self.opp_miss_btn = QPushButton("il a raté")
+        self.opp_miss_btn.setToolTip(
+            "Saisir d'abord la réponse à sa question de ce tour, puis cliquer ici."
+        )
         self.opp_miss_btn.clicked.connect(
             lambda: self._run(lambda: self.game_state.guess_failed({"who": "opponent"}))
         )

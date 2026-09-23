@@ -42,6 +42,12 @@ def test_opp_miss_button_decrements_a_opp(qapp):
     assert gs.a_opp == 1
 
 
+def test_opp_miss_button_has_the_entry_order_tooltip(qapp):
+    gs = GameState()
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    assert "d'abord" in panel.opp_miss_btn.toolTip()
+
+
 def test_my_miss_button_excludes_the_selected_candidate(qapp):
     gs = _n4_game_state()
     payload = gs.payload()

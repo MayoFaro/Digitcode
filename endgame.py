@@ -80,10 +80,12 @@ def build_universe(
     if not sols or len(sols) > n_max:
         return None
     candidates: List[Candidate] = [tuple(sol[p] for p in POSITIONS) for sol in sols]
+    full_mask = (1 << len(candidates)) - 1
     questions: List[EQuestion] = []
     for q in solver.enumerate_all_questions(clue, should_cancel=should_cancel):
         answers: List[str] = []
         classes: List[int] = []
+        covered = 0
         for out in q["outcomes"]:
             if should_cancel():
                 raise Cancelled()
@@ -95,7 +97,12 @@ def build_universe(
             if mask:
                 answers.append(out["answer"])
                 classes.append(mask)
-        if len(classes) > 1:
+                covered |= mask
+        # A question whose enumerated outcomes don't cover every candidate
+        # would silently make the branch probabilities at this node sum to
+        # < 1 (some candidate has no answer under this question). Drop it
+        # rather than search over an unsound partition.
+        if len(classes) > 1 and covered == full_mask:
             questions.append(EQuestion(q["qtype"], q["label"], tuple(answers), tuple(classes)))
     return candidates, questions
 

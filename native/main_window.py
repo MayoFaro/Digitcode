@@ -240,6 +240,15 @@ class MainWindow(QMainWindow):
     def _cleanup_worker(self, worker: SolveWorker) -> None:
         if worker in self._retired_workers:
             self._retired_workers.remove(worker)
+        # A worker that finished normally (not superseded/retired) still
+        # sits in self._worker / self._endgame_worker; drop the reference
+        # here too, or the next _cancel_endgame/_schedule_refresh would
+        # append this already-finished wrapper to _retired_workers, where
+        # it would never be removed (its `finished` already fired).
+        if self._worker is worker:
+            self._worker = None
+        if self._endgame_worker is worker:
+            self._endgame_worker = None
         worker.deleteLater()
 
     def _on_worker_finished(self, payload: dict, generation: int) -> None:

@@ -98,29 +98,50 @@ def play(questions, n: int, truth: int, agents, first: int):
 
 
 def selfplay() -> None:
+    """new vs legacy over every truth and both seat orders, plus a
+    CALIBRATION report per board: the engine's own predicted root p_win
+    for the first mover next to the realised new-vs-new win rate of the
+    first mover (averaged exhaustively over every truth). This is not a
+    sanity check -- new-vs-new at a fixed seat order is not 0.5 by
+    construction, unlike new-vs-new averaged over both seat orders would
+    be for any deterministic engine. It is informational: the model is
+    pessimistic about the opponent (see endgame.py's approximation), so
+    realised is usually >= predicted, but this is not asserted."""
     new_wins = games = 0.0
-    sanity = sanity_games = 0.0
+    calibrated = boards = 0
     for k in range(20):
         s, clue = random_board(77 + k, 12)
         candidates, questions = build_universe(s, clue, n_max=40)
         n = len(candidates)
         if n < 3:
             continue
-        new, legacy = EndgameSolver(n, questions, **NEW), EndgameSolver(n, questions, **LEGACY)
+        full = (1 << n) - 1
+        new, legacy, new2 = (
+            EndgameSolver(n, questions, **NEW),
+            EndgameSolver(n, questions, **LEGACY),
+            EndgameSolver(n, questions, **NEW),
+        )
+        pred = new.analyze(full, -1, 2, 2, 0)["p_win"]
         board_new = board_games = 0.0
+        realised_new = realised_games = 0.0
         for truth in range(n):
             for first in (0, 1):
                 w = play(questions, n, truth, [new, legacy], first)
                 board_new += 0.5 if w is None else (1.0 if w == 0 else 0.0)
                 board_games += 1
-                w2 = play(questions, n, truth, [new, EndgameSolver(n, questions, **NEW)], first)
-                sanity += 0.5 if w2 is None else (1.0 if w2 == 0 else 0.0)
-                sanity_games += 1
+            w2 = play(questions, n, truth, [new, new2], first=0)
+            realised_new += 0.5 if w2 is None else (1.0 if w2 == 0 else 0.0)
+            realised_games += 1
+        realised = realised_new / realised_games
+        boards += 1
+        if realised >= pred - 1e-9:
+            calibrated += 1
         new_wins += board_new
         games += board_games
         print(f"board {k:2d} N={n:2d}: new vs legacy {board_new / board_games:.3f}", flush=True)
+        print(f"  calibration: pred {pred:.4f} realised {realised:.4f}", flush=True)
     print(f"OVERALL new vs legacy: {new_wins / games:.4f} over {int(games)} games")
-    print(f"SANITY new vs new: {sanity / sanity_games:.4f} (expected 0.5)")
+    print(f"CALIBRATION: realised >= pred - 1e-9 on {calibrated}/{boards} boards")
 
 
 if __name__ == "__main__":
