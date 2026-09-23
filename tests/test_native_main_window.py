@@ -294,3 +294,60 @@ def test_wheel_without_ctrl_does_not_change_opacity(qapp):
     )
     window.eventFilter(window, event)
     assert window.windowOpacity() == pytest.approx(0.8)
+
+
+from digitcode.native.panels.endgame_format import ENDGAME_PENDING_TEXT, format_endgame
+
+from tests.test_game_state import _n4_state
+
+
+def test_endgame_block_is_hidden_on_a_fresh_board(qapp):
+    window = MainWindow()
+    window.show()
+    assert window._endgame_worker is None
+    assert not window.solutions_panel.endgame_label.isVisible()
+
+
+def test_small_board_schedules_the_endgame_and_renders_its_result(qapp):
+    window = MainWindow(_n4_state())
+    window.show()
+    window.stack.setCurrentIndex(2)
+    assert window._endgame_worker is not None
+    assert window.solutions_panel.endgame_label.text() == ENDGAME_PENDING_TEXT
+
+    window._endgame_worker.wait()
+    QApplication.processEvents()  # deliver the cross-thread finished_ok signal
+
+    expected = format_endgame(window.game_state.endgame())
+    assert window.solutions_panel.endgame_label.text() == expected
+    assert window.solutions_panel.endgame_label.isVisible()
+
+
+def test_schedule_refresh_cancels_the_endgame_and_hides_the_block(qapp):
+    window = MainWindow(_n4_state())
+    window.show()
+    endgame_worker = window._endgame_worker
+    window._schedule_refresh()
+    assert endgame_worker._cancel_event.is_set()
+    assert not window.solutions_panel.endgame_label.isVisible()
+    for worker in list(window._retired_workers) + [window._worker]:
+        worker.wait()
+    QApplication.processEvents()  # the refreshed payload reschedules an endgame search
+    if window._endgame_worker is not None:
+        window._endgame_worker.wait()
+        QApplication.processEvents()
+
+
+def test_on_endgame_finished_ignores_a_stale_generation(qapp):
+    window = MainWindow()
+    window._endgame_generation = 5
+    window._on_endgame_finished({"complete": False, "n_public": 3}, generation=4)
+    assert not window.solutions_panel.endgame_label.isVisible()
+
+
+def test_on_endgame_failed_shows_the_error(qapp):
+    window = MainWindow()
+    window.show()
+    window.stack.setCurrentIndex(2)
+    window._on_endgame_failed("boom", generation=window._endgame_generation)
+    assert "boom" in window.solutions_panel.endgame_label.text()

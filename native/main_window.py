@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Callable
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QThread, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -16,9 +16,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..endgame import ENDGAME_N_MAX
 from ..game_state import GameState, clone_clue
+from .endgame_worker import EndgameWorker
 from .panels.chiffres_panel import ChiffresPanel
 from .panels.comparaisons_panel import ComparaisonsPanel
+from .panels.endgame_format import ENDGAME_PENDING_TEXT, format_endgame
 from .panels.solutions_panel import SolutionsPanel
 from .solve_worker import SolveWorker
 
@@ -53,7 +56,13 @@ class MainWindow(QMainWindow):
         # running thread ("QThread: Destroyed while thread is still
         # running", observed crash, not a theoretical concern). Each entry
         # removes itself via _cleanup_worker once its own `finished` fires.
-        self._retired_workers: list[SolveWorker] = []
+        self._retired_workers: list[QThread] = []
+        # Exact endgame search (endgame.py), run on its own worker after each
+        # full payload once the board is small enough. Its own generation
+        # counter: bumped by _cancel_endgame, so a result from a superseded
+        # search is ignored.
+        self._endgame_worker: EndgameWorker | None = None
+        self._endgame_generation = 0
 
         self.setWindowTitle("Digitcode")
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
@@ -95,6 +104,7 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
+        self.solutions_panel = SolutionsPanel(self.game_state, self._run)
         self.panels: list[QWidget] = [
             # Clue entry (row/col totals, comparisons, parity, segments) goes
             # through _mutate: instant, cancellable-background-recompute --
@@ -104,7 +114,7 @@ class MainWindow(QMainWindow):
             # out of scope (see the plan doc).
             ChiffresPanel(self.game_state, self._mutate),
             ComparaisonsPanel(self.game_state, self._mutate),
-            SolutionsPanel(self.game_state, self._run),
+            self.solutions_panel,
         ]
         for panel in self.panels:
             self.stack.addWidget(panel)
@@ -153,6 +163,7 @@ class MainWindow(QMainWindow):
         else:
             self.error_label.hide()
             self._render(payload)
+            self._schedule_endgame(payload)
         finally:
             QApplication.processEvents()
             self.centralWidget().setEnabled(True)
@@ -207,6 +218,8 @@ class MainWindow(QMainWindow):
         (see native/solve_worker.py and the plan doc). A late result from a
         cancelled worker is simply ignored via the generation check in
         _on_worker_finished/_on_worker_failed."""
+        self._cancel_endgame()
+        self.solutions_panel.hide_endgame()
         if self._worker is not None:
             self._worker.cancel()
             self._retired_workers.append(self._worker)
@@ -234,6 +247,7 @@ class MainWindow(QMainWindow):
             return  # stale: a newer move has already superseded this result
         self.busy_label.hide()
         self._render(payload)
+        self._schedule_endgame(payload)
 
     def _on_worker_failed(self, message: str, generation: int) -> None:
         if generation != self._generation:
@@ -242,10 +256,52 @@ class MainWindow(QMainWindow):
         self.error_label.setText(f"⚠️ Erreur inattendue : {message}")
         self.error_label.show()
 
+    def _cancel_endgame(self) -> None:
+        if self._endgame_worker is not None:
+            self._endgame_worker.cancel()
+            self._retired_workers.append(self._endgame_worker)
+            self._endgame_worker = None
+        self._endgame_generation += 1
+
+    def _schedule_endgame(self, payload: dict) -> None:
+        """Start the exact endgame search for the state `payload` was just
+        rendered from -- only after a FULL render (never _render_quick),
+        and only when the board is small enough to be worth it."""
+        self._cancel_endgame()
+        if payload["n_solutions_total"] > ENDGAME_N_MAX:
+            self.solutions_panel.hide_endgame()
+            return
+        gs = self.game_state
+        worker = EndgameWorker(
+            clone_clue(gs.clue), gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size,
+            self._endgame_generation,
+        )
+        worker.finished_ok.connect(self._on_endgame_finished)
+        worker.failed.connect(self._on_endgame_failed)
+        worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
+        self._endgame_worker = worker
+        self.solutions_panel.show_endgame_text(ENDGAME_PENDING_TEXT)
+        worker.start()
+
+    def _on_endgame_finished(self, result, generation: int) -> None:
+        if generation != self._endgame_generation:
+            return
+        if result is None:
+            self.solutions_panel.hide_endgame()
+        else:
+            self.solutions_panel.show_endgame_text(format_endgame(result))
+
+    def _on_endgame_failed(self, message: str, generation: int) -> None:
+        if generation != self._endgame_generation:
+            return
+        self.solutions_panel.show_endgame_text(f"Fin de partie : erreur ({message})")
+
     def closeEvent(self, event) -> None:
         workers = list(self._retired_workers)
         if self._worker is not None:
             workers.append(self._worker)
+        if self._endgame_worker is not None:
+            workers.append(self._endgame_worker)
         for worker in workers:
             try:
                 worker.cancel()
