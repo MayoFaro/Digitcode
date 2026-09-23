@@ -27,9 +27,10 @@ quatre défauts, établis par l'analyse et les mesures de cette branche :
    *tout de suite* est bien 1/n pour tout code, mais **ce que laisse un
    échec** dépend du code tenté. Exemple : pool {A,B,C}, la meilleure
    question adverse coupe {A}|{B,C}. Tenter A → V = 2/3 ; tenter B →
-   V = 1/2. Règle intuitive : tenter le code que les questions adverses
-   isoleraient, car s'il est faux, on vient de tuer la branche décisive de
-   l'adversaire.
+   V = 1/2. La règle intuitive « tenter le code que les questions adverses
+   isoleraient » ne tient pas en général : sur un pool à 4 avec les
+   questions {A,B}|{C,D} et {A}|{B,C,D}, les valeurs des tentatives sont
+   A → 0,50, B → 0,42, C et D → 0,58. Seul le calcul tranche.
 3. **« Proposer sans question » n'existe qu'à la racine.** Aux nœuds
    internes, chaque joueur est forcé de poser une question informative —
    donc de donner de l'information à l'autre. Or une proposition ratée est
@@ -137,7 +138,10 @@ l'adversaire gagne en proposant (uniformément dans S \ {x}) :
 
     P_hit_adv(S) = 1/(m−1) + (m − |S|) / ((m−1)·|S|)
 
-Sans échec adverse : 1/|S|. Vérification : m=4, |S|=2 → 2/3.
+Valable pour |S| ≥ 2. Pour |S| = 1, le pool ne contient que la solution
+(x ≠ t) : la réussite est certaine (1), le premier terme de la formule
+étant alors un 0/0. Sans échec adverse : 1/|S|. Vérification : m=4,
+|S|=2 → 2/3.
 
 Les réponses aux questions dépendent de t seul ; la loi de x sachant t
 n'est pas modifiée par les questions, la formule reste valable après
@@ -204,7 +208,7 @@ Documenté comme limite, pas contourné en v1.
 ### Résultat `endgame`
 
 - `p_win` : valeur exacte sous le modèle ;
-- `decision` : `"guess_now"` ou `"question"` ;
+- `decision` : `"guess_now"`, `"question"`, ou `"none"` (plus d'essai de mon côté) ;
 - `guess_now` : `{"code", "p_win"}` — meilleure proposition directe ;
 - `best_question` : `{"label", "p_win", "branches": [{"answer", "n",
   "prob", "action": "guess"|"wait", "code"?, "value"}]}` — pour chaque
@@ -276,3 +280,18 @@ marcher tel quel).
    offrir aux deux joueurs.
 2. **Tirage uniforme des codes** : a-t-on des parties enregistrées pour le
    vérifier ?
+
+## Évolution — mesures d'implémentation (2026-09-23)
+
+- `ENDGAME_N_MAX` = 20 ; perf (random real games, `tests/bench_endgame.py perf`) :
+  worst total for target<=6: 0.03s
+  worst total for target<=10: 0.07s
+  worst total for target<=14: 0.27s
+  worst total for target<=20: 8.21s
+- Self-play exhaustif (chaque code secret × les deux ordres de jeu, 20
+  plateaux N ≤ 12) : nouveau moteur contre modèle legacy (≡ strategy.py
+  exact) = 0.4975 ; contrôle nouveau contre nouveau = 0.5000.
+- Le moteur legacy (toutes extensions coupées) reproduit exactement les
+  `p_win` de `strategy.py` en mode exact sur les grilles de référence
+  (tests/test_endgame.py).
+- « Passer » reste non modélisé (question ouverte 1).
