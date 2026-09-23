@@ -91,3 +91,15 @@ def test_refresh_shows_an_ev_plus_question_when_one_exists(qapp):
     panel.refresh(payload)
     items = [panel.ev_plus_list.item(i).text() for i in range(panel.ev_plus_list.count())]
     assert any("Qui est plus grand, X ou Y ?" in text and "P(gagner)=8%" in text for text in items)
+
+
+def test_endgame_label_is_hidden_by_default_and_toggles(qapp):
+    gs = GameState()
+    panel = SolutionsPanel(gs, run=lambda fn: fn())
+    panel.show()
+    assert not panel.endgame_label.isVisible()
+    panel.show_endgame_text("Fin de partie — test")
+    assert panel.endgame_label.isVisible()
+    assert panel.endgame_label.text() == "Fin de partie — test"
+    panel.hide_endgame()
+    assert not panel.endgame_label.isVisible()

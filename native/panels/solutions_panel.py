@@ -42,6 +42,16 @@ class SolutionsPanel(QWidget):
         self.guess_now_label = QLabel()
         layout.addWidget(self.guess_now_label)
 
+        # "Fin de partie" block: filled asynchronously by MainWindow's
+        # EndgameWorker once the board is small enough (see endgame.py).
+        self.endgame_label = QLabel()
+        self.endgame_label.setWordWrap(True)
+        self.endgame_label.setStyleSheet(
+            "background: #eef6ee; padding: 4px; border-radius: 4px;"
+        )
+        self.endgame_label.hide()
+        layout.addWidget(self.endgame_label)
+
         layout.addWidget(QLabel("Alternatives"))
         self.alternatives_list = QListWidget()
         self.alternatives_list.setMaximumHeight(120)
@@ -94,6 +104,13 @@ class SolutionsPanel(QWidget):
         sol = self._solutions[index]
         digits = [int(c) for c in sol.replace(" ", "")]
         self._run(lambda: self.game_state.guess_failed({"who": "me", "candidate": digits}))
+
+    def show_endgame_text(self, text: str) -> None:
+        self.endgame_label.setText(text)
+        self.endgame_label.show()
+
+    def hide_endgame(self) -> None:
+        self.endgame_label.hide()
 
     def refresh(self, payload: dict) -> None:
         self._solutions = payload["solutions"]
