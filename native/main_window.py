@@ -161,6 +161,13 @@ class MainWindow(QMainWindow):
             self.error_label.show()
             raise
         else:
+            self._cancel_endgame()
+            self._generation += 1
+            if self._worker is not None:
+                self._worker.cancel()
+                self._retired_workers.append(self._worker)
+                self._worker = None
+            self.busy_label.hide()
             self.error_label.hide()
             self._render(payload)
             self._schedule_endgame(payload)
@@ -277,13 +284,14 @@ class MainWindow(QMainWindow):
         rendered from -- only after a FULL render (never _render_quick),
         and only when the board is small enough to be worth it."""
         self._cancel_endgame()
-        if payload["n_solutions_total"] > ENDGAME_N_MAX:
+        self.solutions_panel.hide_endgame()
+        if payload["n_solutions_total"] > ENDGAME_N_MAX or not self.game_state.is_endgame():
             self.solutions_panel.hide_endgame()
             return
         gs = self.game_state
         worker = EndgameWorker(
             clone_clue(gs.clue), gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size,
-            self._endgame_generation, phase=gs.turn_phase(),
+            self._endgame_generation, phase=gs.endgame_turn_phase(),
         )
         worker.finished_ok.connect(self._on_endgame_finished)
         worker.failed.connect(self._on_endgame_failed)
@@ -298,7 +306,7 @@ class MainWindow(QMainWindow):
         if result is None:
             self.solutions_panel.hide_endgame()
         else:
-            self.solutions_panel.show_endgame_text(format_endgame(result))
+            self.solutions_panel.set_endgame_result(result)
 
     def _on_endgame_failed(self, message: str, generation: int) -> None:
         if generation != self._endgame_generation:

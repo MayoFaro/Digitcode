@@ -10,8 +10,9 @@ from .endgame import (
     PHASE_MY_POST_QUESTION,
     PHASE_MY_TURN,
     PHASE_OPP_TURN,
-    evaluate_endgame,
 )
+from .endgame_tempo import evaluate_endgame, PHASE_OPP_POST_QUESTION, PHASES
+from .endgame import ENDGAME_N_MAX
 
 # Cap for the per-question solution-count display (how many solutions each
 # reachable answer could leave). Must stay a lower bound, never a fabricated
@@ -251,6 +252,10 @@ class GameState:
         # the attempts, failures are not restored by undo.
         self.opp_starts = False
         self.failed_guesses: list[tuple[str, int]] = []
+        # Four-phase tracking is activated only on endgame boards. Legacy
+        # turn_phase remains available for the earlier game and old engine.
+        self._endgame_phase: str | None = None
+        self._state_history: list[dict] = []
 
     def payload(self) -> dict:
         return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
@@ -382,8 +387,90 @@ class GameState:
     def endgame(self) -> dict | None:
         return self.build_endgame_from(
             self.clue, self.a_me, self.a_opp, self.my_excluded, self.opp_fail_pool_size,
-            phase=self.turn_phase(),
+            phase=self.endgame_turn_phase(),
         )
+
+    def is_endgame(self) -> bool:
+        solver = DigitcodeSolver()
+        solver.propagate(self.clue)
+        n = solver.count_solutions_capped(self.clue, cap=ENDGAME_N_MAX + 1)
+        return 0 < n <= ENDGAME_N_MAX
+
+    def endgame_turn_phase(self) -> str:
+        if self._endgame_phase is not None:
+            return self._endgame_phase
+        owner, closed = self._replay_turns()
+        if owner == "opp" and not closed:
+            return PHASE_OPP_POST_QUESTION
+        return self.turn_phase()
+
+    def _push_history(self) -> None:
+        self.history.append(clone_clue(self.clue))
+        self._state_history.append(dict(
+            phase=self._endgame_phase, a_me=self.a_me, a_opp=self.a_opp,
+            excluded=self.my_excluded, opp_fail_pool_size=self.opp_fail_pool_size,
+            failed_guesses=list(self.failed_guesses), opp_starts=self.opp_starts,
+        ))
+
+    def _restore_history(self, *, rollback: bool = False) -> None:
+        self.clue = self.history.pop()
+        snap = self._state_history.pop()
+        # Before endgame, retain the established clue-only undo behavior.
+        # Within endgame, undo also restores corrections, failures and turns.
+        restore_all = rollback or snap["phase"] is not None or self._endgame_phase is not None
+        self._endgame_phase = snap["phase"]
+        if restore_all:
+            self.a_me, self.a_opp = snap["a_me"], snap["a_opp"]
+            self.my_excluded = snap["excluded"]
+            self.opp_fail_pool_size = snap["opp_fail_pool_size"]
+            self.failed_guesses = snap["failed_guesses"]
+            self.opp_starts = snap["opp_starts"]
+
+    def _sync_endgame_after_clue(self) -> None:
+        before = self.history[-1]
+        # Editing/removing an existing answer is not another played question.
+        if self._endgame_phase is not None and _count_questions(self.clue) > _count_questions(before):
+            self._endgame_phase = {
+                PHASE_MY_TURN: PHASE_MY_POST_QUESTION,
+                PHASE_MY_POST_QUESTION: PHASE_OPP_POST_QUESTION,
+                PHASE_OPP_TURN: PHASE_OPP_POST_QUESTION,
+                PHASE_OPP_POST_QUESTION: PHASE_MY_POST_QUESTION,
+            }[self._endgame_phase]
+        if not self.is_endgame():
+            self._endgame_phase = None
+        elif self._endgame_phase is None:
+            self._endgame_phase = self.endgame_turn_phase()
+
+    def set_endgame_phase(self, phase: str) -> dict:
+        if phase not in PHASES:
+            raise ValueError("Phase de tour inconnue")
+        if not self.is_endgame():
+            raise ValueError("La correction du tour est réservée à la fin de partie")
+        self._push_history()
+        self._endgame_phase = phase
+        return self.payload()
+
+    def end_endgame_turn(self) -> dict:
+        phase = self.endgame_turn_phase()
+        if not self.is_endgame() or phase not in (PHASE_MY_POST_QUESTION, PHASE_OPP_POST_QUESTION):
+            raise ValueError("Il faut poser une question ou tenter un code avant de terminer le tour")
+        self._push_history()
+        self._endgame_phase = PHASE_OPP_TURN if phase == PHASE_MY_POST_QUESTION else PHASE_MY_TURN
+        return self.payload()
+
+    def record_null_question(self, entry: dict) -> dict:
+        # Validate against the live board, not a potentially stale UI result.
+        from .endgame_tempo import build_universe, question_entry
+        solver = DigitcodeSolver()
+        solver.propagate(self.clue)
+        universe = build_universe(solver, self.clue)
+        if universe is None:
+            raise ValueError("Les questions nulles sont réservées à la fin de partie")
+        allowed = [question_entry(q, q.answers[0]) for q in universe[1] if len(q.classes) == 1]
+        if entry not in allowed:
+            raise ValueError("Cette question n'est plus une question nulle disponible")
+        self.apply_clue_fast(entry["clue_type"], **{k: v for k, v in entry.items() if k != "clue_type"})
+        return self.payload()
 
     def _replay_turns(self) -> tuple[str | None, bool]:
         """Replay the game from the starting player: returns the player of
@@ -463,7 +550,7 @@ class GameState:
             except (TypeError, ValueError):
                 raise ValueError(f"value for {clue_type} must be an integer, got: {fields['value']!r}")
 
-        self.history.append(clone_clue(self.clue))
+        self._push_history()
         clue = self.clue
         if clue_type == "row_total":
             if fields.get("value") is None:
@@ -501,9 +588,11 @@ class GameState:
     def apply_clue(self, clue_type: str, /, **fields) -> dict:
         self._apply_mutation(clue_type, **fields)
         try:
-            return self.payload()
+            result = self.payload()
+            self._sync_endgame_after_clue()
+            return result
         except ValueError:
-            self.clue = self.history.pop()
+            self._restore_history(rollback=True)
             raise
 
     def apply_clue_fast(self, clue_type: str, /, **fields) -> None:
@@ -518,8 +607,9 @@ class GameState:
         self._apply_mutation(clue_type, **fields)
         try:
             DigitcodeSolver().propagate(self.clue)
+            self._sync_endgame_after_clue()
         except ValueError:
-            self.clue = self.history.pop()
+            self._restore_history(rollback=True)
             raise
 
     def apply_clue_with_fallback(self, clue_type: str, attempts: list[dict]) -> dict:
@@ -559,6 +649,14 @@ class GameState:
 
     def guess_failed(self, body: dict) -> dict:
         who = body.get("who")
+        if who not in ("opponent", "me"):
+            raise ValueError("who must be 'me' or 'opponent'")
+        if who == "me" and "candidate" not in body:
+            raise ValueError("candidate field required when who='me'")
+        endgame = self._endgame_phase is not None or self.is_endgame()
+        active_attempts = self.a_opp if who == "opponent" else self.a_me
+        if endgame and active_attempts > 0:
+            self._push_history()
         if who == "opponent":
             if self.a_opp == 2:
                 solver = DigitcodeSolver()
@@ -576,11 +674,13 @@ class GameState:
                 self._record_failed_guess("me")
         else:
             raise ValueError("who must be 'me' or 'opponent'")
+        if endgame and active_attempts > 0:
+            self._endgame_phase = PHASE_MY_TURN if who == "opponent" else PHASE_OPP_TURN
         return self.payload()
 
     def undo(self) -> dict:
         if self.history:
-            self.clue = self.history.pop()
+            self._restore_history()
         return self.payload()
 
     def reset(self) -> dict:
@@ -592,4 +692,6 @@ class GameState:
         self.opp_fail_pool_size = 0
         self.opp_starts = False
         self.failed_guesses = []
+        self._endgame_phase = None
+        self._state_history = []
         return self.payload()
