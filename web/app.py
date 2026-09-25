@@ -43,7 +43,10 @@ def create_app() -> Flask:
 
     @app.post("/api/reset")
     def post_reset():
-        return jsonify(game_state.reset())
+        try:
+            return jsonify(game_state.reset())
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
     @app.get("/")
     def index():

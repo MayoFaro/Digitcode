@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from typing import Callable
+from datetime import datetime, timezone
+
+from .game_archive import save_game
 
 from .mapping import POSITIONS, ROW_TOP, ROW_BOTTOM, COLS, row_contributors, col_contributors
 from .solver import Cancelled, DigitcodeSolver, Clue
@@ -234,6 +237,8 @@ class GameState:
     """
 
     def __init__(self) -> None:
+        self.started_at = datetime.now(timezone.utc)
+        self.last_archive_path: str | None = None
         self.clue = Clue()
         self.history: list[Clue] = []
         self.a_me = 2
@@ -700,6 +705,12 @@ class GameState:
         return self.payload()
 
     def reset(self) -> dict:
+        # Saving must succeed before any in-memory state is discarded.
+        played = (self.clue != Clue() or self.history or self.failed_guesses
+                  or self.my_excluded or self.a_me != 2 or self.a_opp != 2)
+        if played:
+            self.last_archive_path = str(save_game(self))
+        self.started_at = datetime.now(timezone.utc)
         self.clue = Clue()
         self.history = []
         self.a_me = 2

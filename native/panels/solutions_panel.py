@@ -175,11 +175,17 @@ class SolutionsPanel(QWidget):
         self.trace_view.setMaximumHeight(120)
         layout.addWidget(self.trace_view)
 
+        self.archive_label = QLabel()
+        self.archive_label.setWordWrap(True)
+        self.archive_label.hide()
+        layout.addWidget(self.archive_label)
+
         buttons_row = QHBoxLayout()
         self.undo_btn = QPushButton("Annuler (undo)")
         self.undo_btn.clicked.connect(lambda: self._run(self.game_state.undo))
         buttons_row.addWidget(self.undo_btn)
         self.reset_btn = QPushButton("Réinitialiser")
+        self.reset_btn.setToolTip("Sauvegarde automatiquement la partie avant de la réinitialiser.")
         self.reset_btn.clicked.connect(lambda: self._run(self.game_state.reset))
         buttons_row.addWidget(self.reset_btn)
         layout.addLayout(buttons_row)
@@ -237,6 +243,9 @@ class SolutionsPanel(QWidget):
 
     def refresh(self, payload: dict) -> None:
         self._solutions = payload["solutions"]
+        archive = self.game_state.last_archive_path
+        self.archive_label.setVisible(archive is not None)
+        self.archive_label.setText(f"Dernière partie sauvegardée : {archive}" if archive else "")
 
         endgame = (0 < payload["n_solutions_total"] <= ENDGAME_N_MAX
                    and self.game_state.is_endgame())
