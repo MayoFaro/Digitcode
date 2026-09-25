@@ -255,6 +255,7 @@ class GameState:
         # Four-phase tracking is activated only on endgame boards. Legacy
         # turn_phase remains available for the earlier game and old engine.
         self._endgame_phase: str | None = None
+        self._endgame_manual = False
         self._state_history: list[dict] = []
 
     def payload(self) -> dict:
@@ -407,7 +408,7 @@ class GameState:
     def _push_history(self) -> None:
         self.history.append(clone_clue(self.clue))
         self._state_history.append(dict(
-            phase=self._endgame_phase, a_me=self.a_me, a_opp=self.a_opp,
+            phase=self._endgame_phase, manual=self._endgame_manual, a_me=self.a_me, a_opp=self.a_opp,
             excluded=self.my_excluded, opp_fail_pool_size=self.opp_fail_pool_size,
             failed_guesses=list(self.failed_guesses), opp_starts=self.opp_starts,
         ))
@@ -419,6 +420,7 @@ class GameState:
         # Within endgame, undo also restores corrections, failures and turns.
         restore_all = rollback or snap["phase"] is not None or self._endgame_phase is not None
         self._endgame_phase = snap["phase"]
+        self._endgame_manual = snap["manual"]
         if restore_all:
             self.a_me, self.a_opp = snap["a_me"], snap["a_opp"]
             self.my_excluded = snap["excluded"]
@@ -438,6 +440,7 @@ class GameState:
             }[self._endgame_phase]
         if not self.is_endgame():
             self._endgame_phase = None
+            self._endgame_manual = False
         elif self._endgame_phase is None:
             self._endgame_phase = self.endgame_turn_phase()
 
@@ -448,6 +451,7 @@ class GameState:
             raise ValueError("La correction du tour est réservée à la fin de partie")
         self._push_history()
         self._endgame_phase = phase
+        self._endgame_manual = True
         return self.payload()
 
     def end_endgame_turn(self) -> dict:
@@ -456,6 +460,7 @@ class GameState:
             raise ValueError("Il faut poser une question ou tenter un code avant de terminer le tour")
         self._push_history()
         self._endgame_phase = PHASE_OPP_TURN if phase == PHASE_MY_POST_QUESTION else PHASE_MY_TURN
+        self._endgame_manual = True  # explicit end-of-turn action anchors the current player
         return self.payload()
 
     def record_null_question(self, entry: dict) -> dict:
@@ -517,7 +522,18 @@ class GameState:
         self.failed_guesses.append((who, _count_questions(self.clue)))
 
     def set_opp_starts(self, value: bool) -> dict:
-        self.opp_starts = bool(value)
+        value = bool(value)
+        if value == self.opp_starts:
+            return self.payload()
+        tracking = self._endgame_phase is not None
+        if tracking:
+            self._push_history()
+        self.opp_starts = value
+        if tracking and not self._endgame_manual:
+            # Automatically inferred phases must follow the corrected starter.
+            # An explicit turn correction remains the authoritative anchor.
+            self._endgame_phase = None
+            self._endgame_phase = self.endgame_turn_phase()
         return self.payload()
 
     def _apply_mutation(self, clue_type: str, /, **fields) -> None:
@@ -693,5 +709,6 @@ class GameState:
         self.opp_starts = False
         self.failed_guesses = []
         self._endgame_phase = None
+        self._endgame_manual = False
         self._state_history = []
         return self.payload()

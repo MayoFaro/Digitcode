@@ -59,11 +59,10 @@ def test_null_question_button_records_and_cannot_replay_stale_entry(qapp, gs):
 def test_before_question_keeps_all_action_comparisons(gs):
     gs.set_endgame_phase("my_turn")
     text = format_endgame(gs.endgame())
-    assert "Proposer directement" in text
-    assert "Question informative" in text
-    assert "Question nulle" in text
-    assert "Après la question informative" in text
-    assert "Après la question nulle" in text
+    assert "Proposer sans question" in text
+    assert "Poser une question puis proposer" in text
+    assert "Question nulle sans proposer" in text
+    assert "réussite immédiate" not in text
 
 
 def test_opponent_post_question_has_no_second_question_recommendation(gs):

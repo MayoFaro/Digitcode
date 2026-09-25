@@ -237,6 +237,9 @@ class TempoEndgameSolver:
                 branch = {"ci": ci, "n": sub.bit_count(), "prob": prob, "action": "guess", "g": g, "value": guess}
             else:
                 branch = {"ci": ci, "n": sub.bit_count(), "prob": prob, "action": "wait", "g": None, "value": wait}
+            # Expose already-computed alternatives for the presentation layer.
+            # This does not change the policy or the recursive EV calculation.
+            branch.update(guess_value=guess, guess_g=g, wait_value=wait)
             total += prob * branch["value"]
             branches.append(branch)
         return total, branches
@@ -432,15 +435,34 @@ def evaluate_endgame(
                     "action": b["action"],
                     "code": code_to_string(candidates[b["g"]]) if b["g"] is not None else None,
                     "value": b["value"],
+                    "guess_value": b["guess_value"],
+                    "guess_code": code_to_string(candidates[b["guess_g"]]),
+                    "wait_value": b["wait_value"],
+                    "immediate_hit": 1.0 / b["n"],
                 }
                 for b in r["branches"]
             ]
         return out
 
     direct = raw["direct"]
+    # Presentation-only comparisons: fixed question-then-guess, and a null
+    # question explicitly WITHOUT a guess, rather than the adaptive maximum.
+    informative = [r for r in raw["questions"] if len(questions[r["qi"]].classes) > 1]
+    then_guess = None
+    if informative:
+        chosen = max(informative, key=lambda r: sum(b["prob"] * b["guess_value"] for b in r["branches"]))
+        then_guess = fmt_question(chosen, True)
+        then_guess["p_win"] = sum(b["prob"] * b["guess_value"] for b in chosen["branches"])
+    null = next((r for r in raw["questions"] if len(questions[r["qi"]].classes) == 1), None)
+    null_wait = None
+    if null is not None:
+        null_wait = fmt_question(null, False)
+        null_wait["p_win"] = null["branches"][0]["wait_value"]
     return {
         "complete": True,
         "model": "tempo",
+        "best_question_then_guess": then_guess,
+        "null_without_guess": null_wait,
         "null_questions_remaining": sum(len(q.classes) == 1 for q in questions),
         "null_questions": [dict(label=q.label, answer=q.answers[0], entry=question_entry(q, q.answers[0]))
                            for q in questions if len(q.classes) == 1],

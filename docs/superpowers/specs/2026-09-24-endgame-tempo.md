@@ -194,3 +194,32 @@ ciblés réussis**, puis **9 tests ciblés réussis**, dont un nouveau cas limit
 vérifiant qu'une exclusion privée n'active pas l'endgame au-dessus du seuil
 public. `git diff --check` ne signale aucun problème. `endgame.py`,
 `strategy.py` et `solver.py` sont inchangés.
+
+## Correction UI du 25 septembre — partie E4 ... G1
+
+Le résumé compare désormais des actions explicites : proposition sans
+question, meilleure question informative suivie d'une proposition, question
+nulle sans proposition. Toutes les valeurs désignent la victoire finale.
+Les probabilités de réponses, de réussite immédiate et les moyennes pondérées
+sont dans « Détails des probabilités », avec les anciennes comparaisons.
+Le conseil conserve la politique du moteur, y compris lorsqu'une politique
+adaptative (question puis attendre selon la réponse) domine les trois options
+fixes ; cette exception est alors nommée explicitement.
+
+Le moteur expose les valeurs proposer/attendre déjà calculées pour chaque
+réponse. Aucun changement des récurrences, du choix optimal ou des hypothèses
+adverses. Sur la position rapportée, à mon tour avant question : proposition
+directe 58,3 %, L puis proposition 62,5 %, question nulle sans proposition
+33,3 %. Les 58,3 % auparavant affichés pour une question nulle correspondaient
+à la politique question nulle **puis proposition**.
+
+Une phase automatiquement mémorisée suit maintenant les changements de
+« L'adversaire débute ». Une correction explicite du tour reste prioritaire,
+ainsi qu'une fin de tour explicitement enregistrée ; cette priorité figure
+dans l'infobulle. L'undo restaure aussi l'origine automatique/explicite de la
+phase. Après G1, avec l'adversaire premier joueur, la phase est « adversaire,
+question déjà posée », puis « moi, avant question » s'il termine sans proposer.
+
+Validation de cette correction : 140 tests distincts couverts par les suites
+ciblées (moteur inchangé, tours, reproduction G1 et interface native), tous
+réussis. Vérification visuelle à 380 pixels, contrôles de diff sans erreur.

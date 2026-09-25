@@ -52,66 +52,96 @@ def format_endgame(result: dict) -> str:
     return "\n".join(lines)
 
 
-def format_tempo_endgame(result: dict) -> str:
-    """Phase-specific advice; retain both routes before a question."""
-    def pct(v):
-        return f"{100 * v:.1f} %"
+def _tempo_pct(value: float) -> str:
+    return f"{100 * value:.1f} %".replace(".", ",")
 
-    phase = result["phase"]
-    lines = [f"Fin de partie — P(je gagne) estimée : {pct(result['p_win'])}"]
-    lines.append(f"{result['n_public']} codes publics · {result['n_mine']} pour moi · "
-                 f"{result['null_questions_remaining']} questions nulles disponibles")
-    first = "moi" if phase in ("my_turn", "opp_post_question") else "l'adversaire"
-    if result["null_questions_remaining"] % 2:
-        first = "l'adversaire" if first == "moi" else "moi"
-    decision, guess = result["decision"], result["guess_now"]
-    if decision == "won":
-        lines.append("Partie gagnée : l'adversaire n'a plus de tentative.")
-        return "\n".join(lines)
-    if decision == "none":
-        lines.append("Partie terminée : aucune tentative restante.")
-        return "\n".join(lines)
-    if phase == "my_post_question":
-        lines.append("À moi — question déjà posée. Choisir uniquement entre :")
+
+def format_tempo_endgame(result: dict) -> str:
+    """Concise action comparisons, all measured as final victory probability."""
+    pct = _tempo_pct
+    phase, decision = result["phase"], result["decision"]
+    guess = result["guess_now"]
+    lines = ["Fin de partie", "P = probabilité estimée de gagner la partie, suite des tours comprise."]
+    if decision in ("won", "none"):
+        lines.append("Partie gagnée : l'adversaire n'a plus de tentative." if decision == "won"
+                     else "Partie terminée : aucune tentative restante.")
+    elif phase == "my_post_question":
+        lines.append("À moi — question déjà posée.")
         if guess:
-            lines.append(f"• Proposer {guess['code']} : {pct(guess['p_win'])}")
-        lines.append(f"• Terminer mon tour sans proposer : {pct(result['end_turn_p_win'])}")
-        lines.append("Conseil : " + (f"proposer {guess['code']}." if decision == "guess_now"
-                                    else "terminer mon tour sans proposer."))
+            lines.append(f"• Proposer {guess['code']} : P = {pct(guess['p_win'])}")
+        lines.append(f"• Terminer mon tour sans proposer : P = {pct(result['end_turn_p_win'])}")
+        lines.append("Mon conseil : " + (f"proposer {guess['code']}." if decision == "guess_now"
+                                        else "terminer mon tour sans proposer."))
         lines.append("Une nouvelle question n'est pas autorisée ce tour.")
     elif phase == "opp_post_question":
-        lines.append("À l'adversaire — question déjà posée ; il peut proposer ou terminer son tour.")
-        lines.append("Mes chances selon son choix :")
-        lines.append(f"• Il propose : {pct(result['opponent_guess_p_win'])}")
-        lines.append(f"• Il termine sans proposer : {pct(result['opponent_end_turn_p_win'])}")
-        lines.append("Aucun coup à jouer pour moi pour l'instant.")
+        lines.append("À l'adversaire — question déjà posée.")
+        lines.append(f"• Il propose : mes chances de victoire = {pct(result['opponent_guess_p_win'])}")
+        lines.append(f"• Il termine sans proposer : mes chances de victoire = {pct(result['opponent_end_turn_p_win'])}")
+        lines.append("Attendre son choix avant de jouer.")
     elif phase == "opp_turn":
-        lines.append("À l'adversaire — il peut poser une question et/ou proposer un code.")
+        lines.append("À l'adversaire — question et/ou proposition.")
+        lines.append(f"Mes chances de victoire estimées : {pct(result['p_win'])}.")
         lines.append("Aucun coup à jouer pour moi pour l'instant.")
     else:
-        lines.append("À moi — question pas encore posée.")
+        lines.append("À moi — avant question.")
         if guess:
-            lines.append(f"• Proposer directement {guess['code']} : {pct(guess['p_win'])}")
-        for key, title in (("best_informative_question", "Question informative"),
-                           ("best_null_question", "Question nulle, sans révéler d'information")):
-            q = result.get(key)
-            if q:
-                lines.append(f"• {title} : {q['label']} — {pct(q['p_win'])}")
+            lines.append(f"• Proposer sans question ({guess['code']}) : P = {pct(guess['p_win'])}")
+        question = result.get("best_question_then_guess")
+        null = result.get("null_without_guess")
+        lines.append(f"• Poser une question puis proposer : P = {pct(question['p_win'])} — {question['label']}"
+                     if question else "• Question puis proposition : aucune question informative disponible.")
+        lines.append(f"• Question nulle sans proposer : P = {pct(null['p_win'])}"
+                     if null else "• Question nulle sans proposer : aucune disponible.")
         best = result.get("best_question")
         if decision == "guess_now":
-            lines.append(f"Conseil : proposer {guess['code']} directement.")
+            lines.append(f"Mon conseil : proposer {guess['code']} sans question.")
         elif best:
-            lines.append(f"Conseil : poser {best['label']}")
-        # Preserve the contingent plan even if the direct guess wins the comparison.
-        for key, title in (("best_informative_question", "Après la question informative"),
-                           ("best_null_question", "Après la question nulle")):
-            q = result.get(key)
-            if not q:
-                continue
-            lines.append(title + " :")
-            for b in q["branches"]:
-                action = f"proposer {b['code']}" if b["action"] == "guess" else "terminer le tour sans proposer"
-                lines.append(f"  {b['answer']} ({b['n']} codes, {pct(b['prob'])}) → {action} ; victoire {pct(b['value'])}")
+            branches = best["branches"]
+            if best.get("is_null"):
+                b = branches[0]
+                if b["action"] == "guess":
+                    # Do not hide a better policy just because it is outside
+                    # the three fixed-action comparisons requested by the UI.
+                    lines.append(f"• Question nulle puis proposition : P = {pct(best['p_win'])}")
+                    lines.append(f"Mon conseil : poser {best['label']} puis proposer {b['code']}.")
+                else:
+                    lines.append(f"Mon conseil : poser {best['label']} puis terminer sans proposer.")
+            else:
+                if any(b["action"] == "wait" for b in branches):
+                    lines.append(f"• Question puis décision selon la réponse : P = {pct(best['p_win'])}")
+                lines.append(f"Mon conseil : poser {best['label']}")
+                for b in branches:
+                    action = f"proposer {b['code']}" if b["action"] == "guess" else "terminer sans proposer"
+                    lines.append(f"  Si la réponse est {b['answer']} : {action}.")
+    return "\n".join(lines)
+
+
+def format_endgame_details(result: dict) -> str:
+    """Optional explanation: response odds, immediate hit and final victory."""
+    if not result.get("complete") or result.get("model") != "tempo":
+        return ""
+    pct = _tempo_pct
+    lines = [f"{result['n_public']} codes publics ; {result['n_mine']} pour moi.",
+             f"{result['null_questions_remaining']} questions nulles disponibles."]
+    guess = result.get("guess_now")
+    if guess and result["n_mine"]:
+        lines.append(f"Proposition directe : réussite immédiate {pct(1 / result['n_mine'])}, "
+                     f"victoire finale {pct(guess['p_win'])}.")
+    q = result.get("best_question_then_guess")
+    if q:
+        lines.append(f"Question puis proposition — {q['label']}")
+        for b in q["branches"]:
+            lines.append(f"Réponse {b['answer']} : probabilité {pct(b['prob'])}, {b['n']} codes.")
+            lines.append(f"  Proposer {b['guess_code']} : réussite immédiate {pct(b['immediate_hit'])} ; "
+                         f"victoire finale {pct(b['guess_value'])}.")
+        immediate = sum(b["prob"] * b["immediate_hit"] for b in q["branches"])
+        terms = " + ".join(f"{pct(b['prob'])} × {pct(b['guess_value'])}" for b in q["branches"])
+        lines.append(f"Victoire dès la proposition suivant la question : {pct(immediate)}.")
+        lines.append(f"Victoire finale : {terms} = {pct(q['p_win'])}.")
+    first = "moi" if result["phase"] in ("my_turn", "opp_post_question") else "l'adversaire"
+    if result["null_questions_remaining"] % 2:
+        first = "l'adversaire" if first == "moi" else "moi"
     lines.append(f"Si chacun ne joue que des questions nulles : {first} devra agir sans cette option en premier.")
-    lines.append("Probabilités estimées sous le modèle de jeu.")
+    lines.append("La victoire finale inclut les suites après un échec et les coups adverses, "
+                 "sous les hypothèses du modèle actuel.")
     return "\n".join(lines)

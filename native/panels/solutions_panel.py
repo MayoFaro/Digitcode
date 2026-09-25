@@ -41,6 +41,7 @@ class SolutionsPanel(QWidget):
         self.game_state = game_state
         self._run = run
         self._solutions: list[str] = []
+        self._endgame_display = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.scroll_area = QScrollArea()
@@ -62,6 +63,10 @@ class SolutionsPanel(QWidget):
         self.turn_label.setWordWrap(True)
         turn_row.addWidget(self.turn_label)
         self.opp_starts_checkbox = QCheckBox("L'adversaire débute")
+        self.opp_starts_checkbox.setToolTip(
+            "Recalcule le suivi automatique depuis le joueur initial. "
+            "Une phase de tour explicitement corrigée reste prioritaire."
+        )
         self.opp_starts_checkbox.toggled.connect(
             lambda checked: self._run(lambda: self.game_state.set_opp_starts(checked))
         )
@@ -77,6 +82,15 @@ class SolutionsPanel(QWidget):
         )
         self.endgame_label.hide()
         layout.addWidget(self.endgame_label)
+
+        self.endgame_details_toggle = QCheckBox("Détails des probabilités")
+        self.endgame_details_label = QLabel()
+        self.endgame_details_label.setWordWrap(True)
+        self.endgame_details_toggle.toggled.connect(self._toggle_endgame_details)
+        self.endgame_details_toggle.hide()
+        self.endgame_details_label.hide()
+        layout.addWidget(self.endgame_details_toggle)
+        layout.addWidget(self.endgame_details_label)
 
         self.endgame_controls = QWidget()
         controls = QVBoxLayout(self.endgame_controls)
@@ -169,6 +183,12 @@ class SolutionsPanel(QWidget):
         self.reset_btn.clicked.connect(lambda: self._run(self.game_state.reset))
         buttons_row.addWidget(self.reset_btn)
         layout.addLayout(buttons_row)
+        layout.addStretch(1)
+
+    def _toggle_endgame_details(self, checked: bool) -> None:
+        self.endgame_details_label.setVisible(checked and bool(self.endgame_details_label.text()))
+        if self._endgame_display:
+            self.analysis_group.setVisible(checked)
 
     def _on_turn_override(self, index: int) -> None:
         phase = self.turn_override_combo.itemData(index)
@@ -180,8 +200,11 @@ class SolutionsPanel(QWidget):
             self._run(lambda: self.game_state.record_null_question(entry))
 
     def set_endgame_result(self, result: dict) -> None:
-        from .endgame_format import format_endgame
+        from .endgame_format import format_endgame, format_endgame_details
         self.show_endgame_text(format_endgame(result))
+        details = format_endgame_details(result)
+        self.endgame_details_label.setText(details)
+        self.endgame_details_toggle.setVisible(bool(details) or self._endgame_display)
         self.null_questions_combo.clear()
         for q in result.get("null_questions", []):
             self.null_questions_combo.addItem(f"{q['label']} → {q['answer']}", q["entry"])
@@ -197,11 +220,18 @@ class SolutionsPanel(QWidget):
         self._run(lambda: self.game_state.guess_failed({"who": "me", "candidate": digits}))
 
     def show_endgame_text(self, text: str) -> None:
+        self.endgame_details_toggle.setChecked(False)
+        self.endgame_details_toggle.setVisible(self._endgame_display)
+        self.endgame_details_label.hide()
+        self.endgame_details_label.clear()
         self.endgame_label.setText(text)
         self.endgame_label.show()
 
     def hide_endgame(self) -> None:
         self.endgame_label.hide()
+        self.endgame_details_toggle.setChecked(False)
+        self.endgame_details_toggle.hide()
+        self.endgame_details_label.hide()
         self.null_questions_combo.clear()
         self.record_null_btn.setEnabled(False)
 
@@ -210,6 +240,8 @@ class SolutionsPanel(QWidget):
 
         endgame = (0 < payload["n_solutions_total"] <= ENDGAME_N_MAX
                    and self.game_state.is_endgame())
+        self._endgame_display = endgame
+        self.analysis_group.setVisible(not endgame or self.endgame_details_toggle.isChecked())
         phase = self.game_state.endgame_turn_phase() if endgame else self.game_state.turn_phase()
         self.turn_label.setText(TURN_LABELS.get(phase, MY_TURN_LABEL))
         self.endgame_controls.setVisible(endgame)
