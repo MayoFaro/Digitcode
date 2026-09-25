@@ -6,15 +6,19 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
+    QGroupBox,
     QLabel,
     QListWidget,
     QPlainTextEdit,
+    QScrollArea,
+    QSizePolicy,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from ...endgame import PHASE_MY_POST_QUESTION, PHASE_OPP_TURN
+from ...endgame import ENDGAME_N_MAX, PHASE_MY_TURN, PHASE_MY_POST_QUESTION, PHASE_OPP_TURN
+from ...endgame_tempo import PHASE_OPP_POST_QUESTION, PHASES
 from ...game_state import GameState
 from .question_format import format_ev_question_label, format_question_label
 
@@ -22,6 +26,7 @@ MAX_ALTERNATIVES_SHOWN = 10
 
 TURN_LABELS = {
     PHASE_OPP_TURN: "Tour : à l'adversaire",
+    PHASE_OPP_POST_QUESTION: "Tour : adversaire — question posée, proposer ou finir le tour",
     PHASE_MY_POST_QUESTION: "Tour : à moi — question posée, proposer ou finir le tour",
 }
 MY_TURN_LABEL = "Tour : à moi"
@@ -36,7 +41,15 @@ class SolutionsPanel(QWidget):
         self.game_state = game_state
         self._run = run
         self._solutions: list[str] = []
-        layout = QVBoxLayout(self)
+        self._endgame_display = False
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(content)
 
         self.solutions_list_label = QLabel()
         self.solutions_list_label.setWordWrap(True)
@@ -47,21 +60,18 @@ class SolutionsPanel(QWidget):
         # which is also how to resync a miscounted turn.
         turn_row = QHBoxLayout()
         self.turn_label = QLabel()
+        self.turn_label.setWordWrap(True)
         turn_row.addWidget(self.turn_label)
         self.opp_starts_checkbox = QCheckBox("L'adversaire débute")
+        self.opp_starts_checkbox.setToolTip(
+            "Recalcule le suivi automatique depuis le joueur initial. "
+            "Une phase de tour explicitement corrigée reste prioritaire."
+        )
         self.opp_starts_checkbox.toggled.connect(
             lambda checked: self._run(lambda: self.game_state.set_opp_starts(checked))
         )
         turn_row.addWidget(self.opp_starts_checkbox)
         layout.addLayout(turn_row)
-
-        self.p_win_label = QLabel()
-        layout.addWidget(self.p_win_label)
-        self.best_question_label = QLabel()
-        self.best_question_label.setWordWrap(True)
-        layout.addWidget(self.best_question_label)
-        self.guess_now_label = QLabel()
-        layout.addWidget(self.guess_now_label)
 
         # "Fin de partie" block: filled asynchronously by MainWindow's
         # EndgameWorker once the board is small enough (see endgame.py).
@@ -73,15 +83,68 @@ class SolutionsPanel(QWidget):
         self.endgame_label.hide()
         layout.addWidget(self.endgame_label)
 
-        layout.addWidget(QLabel("Alternatives"))
+        self.endgame_details_toggle = QCheckBox("Détails des probabilités")
+        self.endgame_details_label = QLabel()
+        self.endgame_details_label.setWordWrap(True)
+        self.endgame_details_toggle.toggled.connect(self._toggle_endgame_details)
+        self.endgame_details_toggle.hide()
+        self.endgame_details_label.hide()
+        layout.addWidget(self.endgame_details_toggle)
+        layout.addWidget(self.endgame_details_label)
+
+        self.endgame_controls = QWidget()
+        controls = QVBoxLayout(self.endgame_controls)
+        controls.setContentsMargins(0, 0, 0, 0)
+        hint = QLabel("Corriger le tour courant ; le suivi reprend ensuite automatiquement.")
+        hint.setWordWrap(True)
+        controls.addWidget(hint)
+        self.turn_override_combo = QComboBox()
+        for phase, label in zip(PHASES, (
+            "Moi — avant question",
+            "Moi — question déjà posée",
+            "Adversaire — avant question",
+            "Adversaire — question déjà posée",
+        )):
+            self.turn_override_combo.addItem(label, phase)
+        self.turn_override_combo.activated.connect(self._on_turn_override)
+        controls.addWidget(self.turn_override_combo)
+        self.end_turn_btn = QPushButton("Terminer le tour sans proposition")
+        self.end_turn_btn.clicked.connect(lambda: self._run(self.game_state.end_endgame_turn))
+        controls.addWidget(self.end_turn_btn)
+        self.null_questions_combo = QComboBox()
+        self.null_questions_combo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        controls.addWidget(self.null_questions_combo)
+        self.record_null_btn = QPushButton("Enregistrer cette question nulle")
+        self.record_null_btn.setToolTip("À utiliser après avoir réellement posé cette question. La réponse est déjà connue.")
+        self.record_null_btn.clicked.connect(self._on_null_question)
+        controls.addWidget(self.record_null_btn)
+        self.endgame_controls.hide()
+        layout.addWidget(self.endgame_controls)
+
+        self.analysis_group = QGroupBox("Comparaisons des questions")
+        analysis = QVBoxLayout(self.analysis_group)
+        self.analysis_context = QLabel()
+        self.analysis_context.setWordWrap(True)
+        analysis.addWidget(self.analysis_context)
+        layout.addWidget(self.analysis_group)
+        self.p_win_label = QLabel()
+        analysis.addWidget(self.p_win_label)
+        self.best_question_label = QLabel()
+        self.best_question_label.setWordWrap(True)
+        analysis.addWidget(self.best_question_label)
+        self.guess_now_label = QLabel()
+        self.guess_now_label.setWordWrap(True)
+        analysis.addWidget(self.guess_now_label)
+
+        analysis.addWidget(QLabel("Alternatives"))
         self.alternatives_list = QListWidget()
         self.alternatives_list.setMaximumHeight(120)
-        layout.addWidget(self.alternatives_list)
+        analysis.addWidget(self.alternatives_list)
 
-        layout.addWidget(QLabel("Coups à solution unique"))
+        analysis.addWidget(QLabel("Coups à solution unique"))
         self.ev_plus_list = QListWidget()
         self.ev_plus_list.setMaximumHeight(80)
-        layout.addWidget(self.ev_plus_list)
+        analysis.addWidget(self.ev_plus_list)
 
         attempts_row = QHBoxLayout()
         self.a_me_label = QLabel()
@@ -112,14 +175,47 @@ class SolutionsPanel(QWidget):
         self.trace_view.setMaximumHeight(120)
         layout.addWidget(self.trace_view)
 
+        self.archive_label = QLabel()
+        self.archive_label.setWordWrap(True)
+        self.archive_label.hide()
+        layout.addWidget(self.archive_label)
+
         buttons_row = QHBoxLayout()
         self.undo_btn = QPushButton("Annuler (undo)")
         self.undo_btn.clicked.connect(lambda: self._run(self.game_state.undo))
         buttons_row.addWidget(self.undo_btn)
         self.reset_btn = QPushButton("Réinitialiser")
+        self.reset_btn.setToolTip("Sauvegarde automatiquement la partie avant de la réinitialiser.")
         self.reset_btn.clicked.connect(lambda: self._run(self.game_state.reset))
         buttons_row.addWidget(self.reset_btn)
         layout.addLayout(buttons_row)
+        layout.addStretch(1)
+
+    def _toggle_endgame_details(self, checked: bool) -> None:
+        self.endgame_details_label.setVisible(checked and bool(self.endgame_details_label.text()))
+        if self._endgame_display:
+            self.analysis_group.setVisible(checked)
+
+    def _on_turn_override(self, index: int) -> None:
+        phase = self.turn_override_combo.itemData(index)
+        self._run(lambda: self.game_state.set_endgame_phase(phase))
+
+    def _on_null_question(self) -> None:
+        entry = self.null_questions_combo.currentData()
+        if entry is not None:
+            self._run(lambda: self.game_state.record_null_question(entry))
+
+    def set_endgame_result(self, result: dict) -> None:
+        from .endgame_format import format_endgame, format_endgame_details
+        self.show_endgame_text(format_endgame(result))
+        details = format_endgame_details(result)
+        self.endgame_details_label.setText(details)
+        self.endgame_details_toggle.setVisible(bool(details) or self._endgame_display)
+        self.null_questions_combo.clear()
+        for q in result.get("null_questions", []):
+            self.null_questions_combo.addItem(f"{q['label']} → {q['answer']}", q["entry"])
+        self.record_null_btn.setEnabled(self.null_questions_combo.count() > 0
+                                        and self.game_state.a_me > 0 and self.game_state.a_opp > 0)
 
     def _on_my_miss(self) -> None:
         index = self.my_miss_combo.currentIndex()
@@ -130,16 +226,53 @@ class SolutionsPanel(QWidget):
         self._run(lambda: self.game_state.guess_failed({"who": "me", "candidate": digits}))
 
     def show_endgame_text(self, text: str) -> None:
+        self.endgame_details_toggle.setChecked(False)
+        self.endgame_details_toggle.setVisible(self._endgame_display)
+        self.endgame_details_label.hide()
+        self.endgame_details_label.clear()
         self.endgame_label.setText(text)
         self.endgame_label.show()
 
     def hide_endgame(self) -> None:
         self.endgame_label.hide()
+        self.endgame_details_toggle.setChecked(False)
+        self.endgame_details_toggle.hide()
+        self.endgame_details_label.hide()
+        self.null_questions_combo.clear()
+        self.record_null_btn.setEnabled(False)
 
     def refresh(self, payload: dict) -> None:
         self._solutions = payload["solutions"]
+        archive = self.game_state.last_archive_path
+        self.archive_label.setVisible(archive is not None)
+        self.archive_label.setText(f"Dernière partie sauvegardée : {archive}" if archive else "")
 
-        self.turn_label.setText(TURN_LABELS.get(self.game_state.turn_phase(), MY_TURN_LABEL))
+        endgame = (0 < payload["n_solutions_total"] <= ENDGAME_N_MAX
+                   and self.game_state.is_endgame())
+        self._endgame_display = endgame
+        self.analysis_group.setVisible(not endgame or self.endgame_details_toggle.isChecked())
+        phase = self.game_state.endgame_turn_phase() if endgame else self.game_state.turn_phase()
+        self.turn_label.setText(TURN_LABELS.get(phase, MY_TURN_LABEL))
+        self.endgame_controls.setVisible(endgame)
+        self.turn_override_combo.setCurrentIndex(self.turn_override_combo.findData(phase))
+        post = phase in (PHASE_MY_POST_QUESTION, PHASE_OPP_POST_QUESTION)
+        playing = self.game_state.a_me > 0 and self.game_state.a_opp > 0
+        self.end_turn_btn.setEnabled(endgame and post and playing)
+        self.end_turn_btn.setText("Terminer mon tour sans proposer" if phase in (PHASE_MY_TURN, PHASE_MY_POST_QUESTION)
+                                 else "L'adversaire termine sans proposer")
+        next_question_is_mine = phase in (PHASE_MY_TURN, PHASE_OPP_POST_QUESTION)
+        self.record_null_btn.setText("Enregistrer ma question nulle" if next_question_is_mine
+                                     else "Enregistrer la question nulle adverse")
+        self.record_null_btn.setToolTip(
+            "À enregistrer après l'avoir jouée. "
+            + ("Le tour courant se termine sans proposition ; cette question appartient au joueur suivant."
+               if post else "La réponse est déjà connue, mais la question est consommée.")
+        )
+        self.analysis_context.setVisible(endgame)
+        self.analysis_context.setText(
+            "Hypothèse d'une nouvelle question : ces comparaisons ne sont pas des coups jouables ce tour."
+            if post else "Analyse rapide sans questions nulles ; le conseil de fin de partie ci-dessus est prioritaire."
+        )
         self.opp_starts_checkbox.blockSignals(True)
         self.opp_starts_checkbox.setChecked(self.game_state.opp_starts)
         self.opp_starts_checkbox.blockSignals(False)
@@ -160,7 +293,9 @@ class SolutionsPanel(QWidget):
             "Meilleure question : " + (format_question_label(best) if best else "(aucune)")
         )
         self.guess_now_label.setText(
-            "OUI — proposez une solution !" if race["guess_now"] else "Non, attendez."
+            ("Comparaison rapide : proposition directe privilégiée" if race["guess_now"]
+             else "Comparaison rapide : question privilégiée") if endgame else
+            ("OUI — proposez une solution !" if race["guess_now"] else "Non, attendez.")
         )
 
         self.alternatives_list.clear()

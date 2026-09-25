@@ -8,6 +8,12 @@ import pytest
 from digitcode.solver import DigitcodeSolver, Clue
 
 
+@pytest.fixture(autouse=True)
+def isolate_game_archives(tmp_path, monkeypatch):
+    """Never let tests write archives into the user's actual game folder."""
+    monkeypatch.setenv("DIGITCODE_ARCHIVE_DIR", str(tmp_path / "parties"))
+
+
 @pytest.fixture(scope="session")
 def qapp():
     """Session-scoped QApplication for native Qt widget tests. Offscreen
