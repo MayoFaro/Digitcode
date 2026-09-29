@@ -37,6 +37,14 @@ def create_app() -> Flask:
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
+    @app.post("/api/result")
+    def post_result():
+        body = request.get_json(force=True)
+        try:
+            return jsonify(game_state.clear_result() if body is None else game_state.record_result(body))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
     @app.post("/api/undo")
     def post_undo():
         return jsonify(game_state.undo())

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QListWidget,
+    QLineEdit,
     QPlainTextEdit,
     QScrollArea,
     QSizePolicy,
@@ -169,6 +170,30 @@ class SolutionsPanel(QWidget):
         my_miss_row.addWidget(self.my_miss_btn)
         layout.addLayout(my_miss_row)
 
+        result_group = QGroupBox("Résultat de la partie — historique")
+        result_layout = QVBoxLayout(result_group)
+        self.result_who = QComboBox()
+        self.result_who.addItem("J’ai trouvé la solution", "me")
+        self.result_who.addItem("L’adversaire a trouvé la solution", "opponent")
+        result_layout.addWidget(self.result_who)
+        self.result_code = QLineEdit()
+        self.result_code.setPlaceholderText("Code final, exemple : 064 147")
+        result_layout.addWidget(self.result_code)
+        self.result_save_btn = QPushButton("Enregistrer / corriger le résultat")
+        self.result_save_btn.clicked.connect(lambda: self._run(lambda: self.game_state.record_result({
+            "who": self.result_who.currentData(), "code": self.result_code.text(),
+        })))
+        result_layout.addWidget(self.result_save_btn)
+        self.result_label = QLabel()
+        self.result_label.setWordWrap(True)
+        result_layout.addWidget(self.result_label)
+        self.result_clear_btn = QPushButton("Effacer le résultat saisi")
+        self.result_clear_btn.clicked.connect(lambda: self._run(self.game_state.clear_result))
+        result_layout.addWidget(self.result_clear_btn)
+        layout.addWidget(result_group)
+        self._shown_result = None
+        self._shown_started_at = game_state.started_at
+
         layout.addWidget(QLabel("Historique"))
         self.trace_view = QPlainTextEdit()
         self.trace_view.setReadOnly(True)
@@ -243,6 +268,23 @@ class SolutionsPanel(QWidget):
 
     def refresh(self, payload: dict) -> None:
         self._solutions = payload["solutions"]
+        result = self.game_state.result
+        if self._shown_started_at != self.game_state.started_at or (self._shown_result and not result):
+            self.result_code.clear()
+            self.result_who.setCurrentIndex(0)
+        if result and result != self._shown_result:
+            self.result_who.setCurrentIndex(self.result_who.findData(result["winner"]))
+            self.result_code.setText(result["code"])
+        self._shown_result = result
+        self._shown_started_at = self.game_state.started_at
+        self.result_clear_btn.setEnabled(result is not None)
+        if result:
+            winner = "Moi" if result["winner"] == "me" else "Adversaire"
+            code = result["code"]
+            self.result_label.setText(f"Résultat enregistré : {winner} — {code[:3]} {code[3:]}. Archivé à la réinitialisation.")
+        else:
+            self.result_label.setText("Résultat non renseigné. À enregistrer avant de réinitialiser.")
+
         archive = self.game_state.last_archive_path
         self.archive_label.setVisible(archive is not None)
         self.archive_label.setText(f"Dernière partie sauvegardée : {archive}" if archive else "")

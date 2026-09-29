@@ -16,7 +16,9 @@ def test_run_emits_finished_ok_with_the_expected_payload(qapp):
     assert len(received) == 1
     payload, generation = received[0]
     assert generation == 1
-    assert payload == gs.payload()
+    expected = gs.payload()
+    assert expected.pop("result") is None
+    assert payload == expected
 
 
 def test_run_emits_nothing_when_cancelled_before_starting(qapp):

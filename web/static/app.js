@@ -98,7 +98,12 @@ async function postUndo() {
 async function postReset() {
   try {
     const res = await fetch(`${API}/reset`, { method: "POST" });
-    return await res.json();
+    const state = await res.json();
+    if (!state.error) {
+      document.getElementById("result-code").value = "";
+      document.getElementById("result-who").value = "me";
+    }
+    return state;
   } catch (e) {
     showError(`Impossible de joindre le serveur (${e.message}). Est-il démarré ?`);
     return null;
@@ -382,6 +387,8 @@ function formatQuestionLabel(entry) {
   return `${prefix}${entry.label} — ${formatSolutionCounts(entry)}`;
 }
 
+let shownResult = null;
+
 function render(state) {
   // A null state means the request never reached the server; showError() has
   // already put the reason in the banner, so keep the last rendered view.
@@ -393,6 +400,17 @@ function render(state) {
     return;
   }
   banner.style.display = "none";
+  const result = state.result || null;
+  if (JSON.stringify(result) !== JSON.stringify(shownResult)) {
+    document.getElementById("result-code").value = result ? result.code : "";
+    document.getElementById("result-who").value = result ? result.winner : "me";
+  }
+  shownResult = result;
+  document.getElementById("result-clear").disabled = !result;
+  document.getElementById("result-status").textContent = result
+    ? `Résultat enregistré : ${result.winner === "me" ? "Moi" : "Adversaire"} — ${result.code.slice(0, 3)} ${result.code.slice(3)}. Archivé à la réinitialisation.`
+    : "Résultat non renseigné. À enregistrer avant de réinitialiser.";
+
 
   const domainsEl = document.getElementById("domains");
   domainsEl.innerHTML = "";
@@ -527,3 +545,20 @@ document.getElementById("my-miss-btn").addEventListener("click", () => {
 });
 
 refresh();
+
+async function postResult(body) {
+  try {
+    const res = await fetch(`${API}/result`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    return await res.json();
+  } catch (e) {
+    showError(`Impossible de joindre le serveur (${e.message}).`);
+    return null;
+  }
+}
+document.getElementById("result-save").addEventListener("click", () => runMutation(() => postResult({
+  who: document.getElementById("result-who").value,
+  code: document.getElementById("result-code").value,
+})));
+document.getElementById("result-clear").addEventListener("click", () => runMutation(() => postResult(null)));

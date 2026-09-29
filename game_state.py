@@ -239,6 +239,7 @@ class GameState:
     def __init__(self) -> None:
         self.started_at = datetime.now(timezone.utc)
         self.last_archive_path: str | None = None
+        self.result: dict | None = None
         self.clue = Clue()
         self.history: list[Clue] = []
         self.a_me = 2
@@ -264,7 +265,8 @@ class GameState:
         self._state_history: list[dict] = []
 
     def payload(self) -> dict:
-        return self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded)
+        return {**self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded),
+                "result": self.result}
 
     @staticmethod
     def build_quick_payload_from(clue: Clue) -> dict:
@@ -704,13 +706,35 @@ class GameState:
             self._restore_history()
         return self.payload()
 
+    def record_result(self, body: dict) -> dict:
+        """Record the observed outcome for archives, without changing solver evidence."""
+        if not isinstance(body, dict):
+            raise ValueError("Résultat invalide : joueur et code requis.")
+        who = body.get("who")
+        if who not in ("me", "opponent"):
+            raise ValueError("Choisissez le joueur qui a trouvé la solution.")
+        code = body.get("code", "")
+        if not isinstance(code, str):
+            raise ValueError("Saisissez un code de six chiffres.")
+        code = "".join(code.split())
+        if len(code) != 6 or any(c not in "0123456789" for c in code):
+            raise ValueError("Saisissez un code de six chiffres (exemple : 064 147).")
+        self.result = {"winner": who, "code": code,
+                       "recorded_at": datetime.now(timezone.utc).isoformat()}
+        return self.payload()
+
+    def clear_result(self) -> dict:
+        self.result = None
+        return self.payload()
+
     def reset(self) -> dict:
         # Saving must succeed before any in-memory state is discarded.
-        played = (self.clue != Clue() or self.history or self.failed_guesses
+        played = (self.result is not None or self.clue != Clue() or self.history or self.failed_guesses
                   or self.my_excluded or self.a_me != 2 or self.a_opp != 2)
         if played:
             self.last_archive_path = str(save_game(self))
         self.started_at = datetime.now(timezone.utc)
+        self.result = None
         self.clue = Clue()
         self.history = []
         self.a_me = 2

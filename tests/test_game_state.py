@@ -127,7 +127,9 @@ def test_build_payload_from_matches_payload_on_the_same_state():
     gs = GameState()
     gs.apply_clue("row_total", row="J", value=3)
     gs.apply_clue("comparison", left="T", rel=">", right="U")
-    assert gs.build_payload_from(gs.clue, gs.a_me, gs.a_opp, gs.my_excluded) == gs.payload()
+    payload = gs.payload()
+    assert payload.pop("result") is None
+    assert gs.build_payload_from(gs.clue, gs.a_me, gs.a_opp, gs.my_excluded) == payload
 
 
 def test_build_payload_from_raises_cancelled_when_asked_to_stop():

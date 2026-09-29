@@ -57,6 +57,7 @@ def save_game(game: GameState) -> Path:
         "started_at": game.started_at.isoformat(),
         "saved_at": saved_at.isoformat(),
         "reason": "reset",
+        "result": game.result,
         "state": {
             "clue": _clue_record(game.clue),
             "a_me": game.a_me,
