@@ -97,6 +97,17 @@ class MainWindow(QMainWindow):
         self.solutions_label = QLabel()
         layout.addWidget(self.solutions_label)
 
+        # Outside the stack: the warning remains visible on all three tabs.
+        self.risk_alert = QLabel()
+        self.risk_alert.setWordWrap(True)
+        self.risk_alert.setTextFormat(Qt.PlainText)
+        self.risk_alert.setStyleSheet(
+            "background: #b71c1c; color: white; font-weight: bold; "
+            "padding: 7px; border-radius: 4px;"
+        )
+        self.risk_alert.hide()
+        layout.addWidget(self.risk_alert)
+
         self.busy_label = QLabel("Calcul en cours…")
         self.busy_label.setStyleSheet("color: #888; font-style: italic;")
         self.busy_label.hide()
@@ -116,6 +127,10 @@ class MainWindow(QMainWindow):
             ComparaisonsPanel(self.game_state, self._mutate),
             self.solutions_panel,
         ]
+        # Move the existing live block; its update methods remain shared with
+        # the Solutions advice, so there is only one copy of the result.
+        first_layout = self.panels[0].content_layout
+        first_layout.insertWidget(first_layout.count() - 1, self.solutions_panel.pre_endgame_group)
         for panel in self.panels:
             self.stack.addWidget(panel)
 
@@ -176,6 +191,7 @@ class MainWindow(QMainWindow):
             self.centralWidget().setEnabled(True)
 
     def _render(self, payload: dict) -> None:
+        self.risk_alert.hide()
         self._last_payload = payload
         self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")
         for panel in self.panels:
@@ -278,6 +294,7 @@ class MainWindow(QMainWindow):
             self._retired_workers.append(self._endgame_worker)
             self._endgame_worker = None
         self._endgame_generation += 1
+        self.risk_alert.hide()
         self.solutions_panel.hide_pre_endgame()
 
     def _schedule_endgame(self, payload: dict) -> None:
@@ -317,6 +334,25 @@ class MainWindow(QMainWindow):
     def _on_pre_endgame_finished(self, result, generation: int) -> None:
         if generation == self._endgame_generation:
             self.solutions_panel.set_pre_endgame_result(result)
+            panel = self.solutions_panel
+            self.panels[0].set_pre_endgame_advice(
+                panel.best_question_label.text(),
+                "\n".join(panel.ev_plus_list.item(i).text() for i in range(panel.ev_plus_list.count())) or "(aucun)",
+            )
+            values = [b['p_win'] for q in result['questions'] for b in q.get('branches', [])
+                      if b.get('p_win') is not None]
+            values += [q['danger']['p_win'] for q in result['questions'] if q.get('danger')]
+            self._show_risk_alert(values)
+
+    def _show_risk_alert(self, values) -> None:
+        low = [p for p in values if p < 0.5 - 1e-12]
+        self.risk_alert.setVisible(bool(low))
+        if low:
+            minimum = f"{min(low):.1%}".replace('.', ',')
+            self.risk_alert.setText(
+                f"⚠ Risque détecté : une issue calculée donne moins de 50 % "
+                f"de chances de victoire (minimum : {minimum})."
+            )
 
     def _on_endgame_finished(self, result, generation: int) -> None:
         if generation != self._endgame_generation:
@@ -325,6 +361,10 @@ class MainWindow(QMainWindow):
             self.solutions_panel.hide_endgame()
         else:
             self.solutions_panel.set_endgame_result(result)
+            values = [result['p_win']] if result.get('p_win') is not None else []
+            for key in ('best_question', 'best_informative_question', 'best_null_question'):
+                values.extend(b['value'] for b in (result.get(key) or {}).get('branches', []))
+            self._show_risk_alert(values)
 
     def _on_endgame_failed(self, message: str, generation: int) -> None:
         if generation != self._endgame_generation:

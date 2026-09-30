@@ -88,3 +88,45 @@ def test_window_schedules_pre_worker_and_cancels_it_when_state_changes(qapp, mon
         assert window.solutions_panel.pre_endgame_group.isHidden()
     finally:
         window.close()
+
+
+def test_risk_alert_is_shared_by_tabs_and_uses_50_not_blacklist_threshold(qapp):
+    from digitcode.native.main_window import MainWindow
+    window = MainWindow()
+    window.show()
+    try:
+        block = window.solutions_panel.pre_endgame_group
+        assert window.panels[0].isAncestorOf(block)
+        assert not window.solutions_panel.isAncestorOf(block)
+        assert not hasattr(window.panels[0], 'solutions_count_label')
+        result = dict(questions=[dict(label='H', status='incomplete', branches=[dict(p_win=.45)])],
+                      finished=False, discovery_complete=True, elapsed_s=.1)
+        window._on_pre_endgame_finished(result, window._endgame_generation)
+        assert window.solutions_panel.blacklist.count() == 0
+        for tab in range(3):
+            window._on_tab_clicked(tab)
+            assert window.risk_alert.isVisible()
+            assert '45,0%' in window.risk_alert.text()
+        window._show_risk_alert([.5, .8])
+        assert window.risk_alert.isHidden()
+        window._show_risk_alert([.49])
+        window._cancel_endgame()
+        assert window.risk_alert.isHidden()
+        window._on_pre_endgame_finished(result, window._endgame_generation - 1)
+        assert window.risk_alert.isHidden()
+    finally:
+        window.close()
+
+
+def test_first_tab_keeps_filtered_advice_when_selecting_a_letter(qapp):
+    from digitcode.native.panels.chiffres_panel import ChiffresPanel
+    gs = GameState()
+    gs.clue = n60_clue()
+    panel = ChiffresPanel(gs, lambda fn: fn())
+    payload = gs.payload()
+    panel.refresh(payload)
+    panel.set_pre_endgame_advice('Meilleure EV : H', '(aucun)')
+    panel._select_row_letter('J')
+    assert panel.best_question_label.text() == 'Meilleure EV : H'
+    panel.refresh(dict(payload))
+    assert panel.best_question_label.text() != 'Meilleure EV : H'

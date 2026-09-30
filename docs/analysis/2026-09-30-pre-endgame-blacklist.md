@@ -102,3 +102,17 @@ commande sans arrêter une instance existante ouvre une fenêtre indépendante.
   strict de 40 % ; arrêt des branches sœurs ; mutualisation ; branches
   inconnues ; délais ; annulation ; retrait des recommandations ; résultats
   périmés ; conservation des indices d'entrée.
+
+## Présentation des alertes
+
+Le bloc d'anticipation est placé en bas du volet Chiffres, qui défile
+verticalement. Le compteur de solutions est conservé uniquement dans
+l'en-tête commun au lieu d'être répété dans ce volet. Les boutons des
+lettres sont répartis sur deux rangées pour éviter le défilement horizontal.
+
+Un bandeau rouge commun aux trois volets apparaît dès qu'une issue calculée
+est strictement sous 50 %, y compris entre 40 et 50 %. Cette alerte ne change
+pas le seuil de la liste noire, qui reste à 40 %. Elle indique la probabilité
+minimale observée et se réinitialise avec la position. Les résultats périmés
+ne peuvent pas la réactiver. Le conseil du premier volet suit aussi le
+filtrage des questions, y compris après sélection d'une lettre.

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from ...game_state import GameState
 from ...mapping import COLS, POSITIONS, ROW_BOTTOM, ROW_TOP
@@ -25,7 +25,16 @@ class ChiffresPanel(QWidget):
         self._selected_col_letter: str | None = None
         self._last_payload: dict | None = None
 
-        layout = QVBoxLayout(self)
+        self._pre_advice = None
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        layout = QVBoxLayout(content)
+        self.content_layout = layout
 
         layout.addWidget(QLabel("Chiffres"))
         self.domains_grid = QGridLayout()
@@ -33,20 +42,18 @@ class ChiffresPanel(QWidget):
         self.domain_labels: dict[str, QLabel] = {}
         for i, pos in enumerate(POSITIONS):
             label = QLabel()
+            label.setWordWrap(True)
             self.domain_labels[pos] = label
             self.domains_grid.addWidget(label, i // 3, i % 3)
 
-        self.solutions_count_label = QLabel()
-        layout.addWidget(self.solutions_count_label)
-
         layout.addWidget(QLabel("Sommes ligne"))
-        self.row_letters_row = QHBoxLayout()
+        self.row_letters_row = QGridLayout()
         layout.addLayout(self.row_letters_row)
         self.row_values_row = QHBoxLayout()
         layout.addLayout(self.row_values_row)
 
         layout.addWidget(QLabel("Sommes colonne"))
-        self.col_letters_row = QHBoxLayout()
+        self.col_letters_row = QGridLayout()
         layout.addLayout(self.col_letters_row)
         self.col_values_row = QHBoxLayout()
         layout.addLayout(self.col_values_row)
@@ -85,12 +92,12 @@ class ChiffresPanel(QWidget):
 
     def _render_letters(self, layout, letters, totals, selected, on_select) -> None:
         self._clear_layout(layout)
-        for letter in letters:
+        for i, letter in enumerate(letters):
             value = totals.get(letter)
             text = f"{letter}={value}" if value is not None else letter
             chip = ChipButton(text, selected=(letter == selected), is_set=(value is not None))
             chip.clicked.connect(lambda _checked=False, l=letter: on_select(l))
-            layout.addWidget(chip)
+            layout.addWidget(chip, i // 5, i % 5)
 
     def _render_values(self, layout, letter, totals, reachable, clue_type, field_name) -> None:
         self._clear_layout(layout)
@@ -125,15 +132,19 @@ class ChiffresPanel(QWidget):
         if self._last_payload is not None:
             self.refresh(self._last_payload)
 
+    def set_pre_endgame_advice(self, best: str, ev_plus: str) -> None:
+        self._pre_advice = (best, ev_plus)
+        self.best_question_label.setText(best)
+        self.ev_plus_label.setText(ev_plus)
+
     def refresh(self, payload: dict) -> None:
+        if payload is not self._last_payload:
+            self._pre_advice = None
         self._last_payload = payload
         for pos in POSITIONS:
-            values = ",".join(str(v) for v in payload["domains"][pos])
+            values = ", ".join(str(v) for v in payload["domains"][pos])
             self.domain_labels[pos].setText(f"<b>{pos}</b><br>{{{values}}}")
 
-        self.solutions_count_label.setText(
-            f"Solutions restantes : {payload['n_solutions_total']}"
-        )
         best = payload["race"].get("best_question")
         self.best_question_label.setText(
             "Meilleure question : " + (format_question_label(best) if best else "(aucune)")
@@ -143,6 +154,9 @@ class ChiffresPanel(QWidget):
         self.ev_plus_label.setText(
             "\n".join(format_ev_question_label(e) for e in ev_plus) if ev_plus else "(aucun)"
         )
+
+        if self._pre_advice is not None:
+            self.set_pre_endgame_advice(*self._pre_advice)
 
         self._render_letters(
             self.row_letters_row, ROW_LETTERS, payload["row_totals"], self._selected_row_letter,
