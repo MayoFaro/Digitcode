@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..endgame import ENDGAME_N_MAX
 from ..game_state import GameState, clone_clue
 from .endgame_worker import EndgameWorker
+from .pre_endgame_worker import PreEndgameWorker
 from .panels.chiffres_panel import ChiffresPanel
 from .panels.comparaisons_panel import ComparaisonsPanel
 from .panels.endgame_format import ENDGAME_PENDING_TEXT, format_endgame
@@ -97,6 +97,17 @@ class MainWindow(QMainWindow):
         self.solutions_label = QLabel()
         layout.addWidget(self.solutions_label)
 
+        # Outside the stack: the warning remains visible on all three tabs.
+        self.risk_alert = QLabel()
+        self.risk_alert.setWordWrap(True)
+        self.risk_alert.setTextFormat(Qt.PlainText)
+        self.risk_alert.setStyleSheet(
+            "background: #b71c1c; color: white; font-weight: bold; "
+            "padding: 7px; border-radius: 4px;"
+        )
+        self.risk_alert.hide()
+        layout.addWidget(self.risk_alert)
+
         self.busy_label = QLabel("Calcul en cours…")
         self.busy_label.setStyleSheet("color: #888; font-style: italic;")
         self.busy_label.hide()
@@ -116,6 +127,10 @@ class MainWindow(QMainWindow):
             ComparaisonsPanel(self.game_state, self._mutate),
             self.solutions_panel,
         ]
+        # Move the existing live block; its update methods remain shared with
+        # the Solutions advice, so there is only one copy of the result.
+        first_layout = self.panels[0].content_layout
+        first_layout.insertWidget(first_layout.count() - 1, self.solutions_panel.pre_endgame_group)
         for panel in self.panels:
             self.stack.addWidget(panel)
 
@@ -176,6 +191,7 @@ class MainWindow(QMainWindow):
             self.centralWidget().setEnabled(True)
 
     def _render(self, payload: dict) -> None:
+        self.risk_alert.hide()
         self._last_payload = payload
         self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")
         for panel in self.panels:
@@ -278,27 +294,65 @@ class MainWindow(QMainWindow):
             self._retired_workers.append(self._endgame_worker)
             self._endgame_worker = None
         self._endgame_generation += 1
+        self.risk_alert.hide()
+        self.solutions_panel.hide_pre_endgame()
 
     def _schedule_endgame(self, payload: dict) -> None:
-        """Start the exact endgame search for the state `payload` was just
-        rendered from -- only after a FULL render (never _render_quick),
-        and only when the board is small enough to be worth it."""
+        """After a full render, screen upcoming questions or analyze endgame."""
         self._cancel_endgame()
         self.solutions_panel.hide_endgame()
-        if payload["n_solutions_total"] > ENDGAME_N_MAX or not self.game_state.is_endgame():
-            self.solutions_panel.hide_endgame()
-            return
         gs = self.game_state
-        worker = EndgameWorker(
+        if payload["n_solutions_total"] <= 0:
+            return
+        pre = not gs.is_endgame()
+        if pre:
+            # No initial question can narrow an empty board to <=20.
+            c = gs.clue
+            if not (c.row_totals or c.col_totals or c.parity or c.comparisons or c.segment_state):
+                return
+            worker_type = PreEndgameWorker
+        else:
+            worker_type = EndgameWorker
+        worker = worker_type(
             clone_clue(gs.clue), gs.a_me, gs.a_opp, gs.my_excluded, gs.opp_fail_pool_size,
             self._endgame_generation, phase=gs.endgame_turn_phase(),
         )
-        worker.finished_ok.connect(self._on_endgame_finished)
+        if pre:
+            worker.progress.connect(self._on_pre_endgame_finished)
+            worker.finished_ok.connect(self._on_pre_endgame_finished)
+        else:
+            worker.finished_ok.connect(self._on_endgame_finished)
         worker.failed.connect(self._on_endgame_failed)
         worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
         self._endgame_worker = worker
-        self.solutions_panel.show_endgame_text(ENDGAME_PENDING_TEXT)
+        if pre:
+            self.solutions_panel.show_pre_endgame_pending()
+        else:
+            self.solutions_panel.show_endgame_text(ENDGAME_PENDING_TEXT)
         worker.start()
+
+    def _on_pre_endgame_finished(self, result, generation: int) -> None:
+        if generation == self._endgame_generation:
+            self.solutions_panel.set_pre_endgame_result(result)
+            panel = self.solutions_panel
+            self.panels[0].set_pre_endgame_advice(
+                panel.best_question_label.text(),
+                "\n".join(panel.ev_plus_list.item(i).text() for i in range(panel.ev_plus_list.count())) or "(aucun)",
+            )
+            values = [b['p_win'] for q in result['questions'] for b in q.get('branches', [])
+                      if b.get('p_win') is not None]
+            values += [q['danger']['p_win'] for q in result['questions'] if q.get('danger')]
+            self._show_risk_alert(values)
+
+    def _show_risk_alert(self, values) -> None:
+        low = [p for p in values if p < 0.5 - 1e-12]
+        self.risk_alert.setVisible(bool(low))
+        if low:
+            minimum = f"{min(low):.1%}".replace('.', ',')
+            self.risk_alert.setText(
+                f"⚠ Risque détecté : une issue calculée donne moins de 50 % "
+                f"de chances de victoire (minimum : {minimum})."
+            )
 
     def _on_endgame_finished(self, result, generation: int) -> None:
         if generation != self._endgame_generation:
@@ -307,11 +361,18 @@ class MainWindow(QMainWindow):
             self.solutions_panel.hide_endgame()
         else:
             self.solutions_panel.set_endgame_result(result)
+            values = [result['p_win']] if result.get('p_win') is not None else []
+            for key in ('best_question', 'best_informative_question', 'best_null_question'):
+                values.extend(b['value'] for b in (result.get(key) or {}).get('branches', []))
+            self._show_risk_alert(values)
 
     def _on_endgame_failed(self, message: str, generation: int) -> None:
         if generation != self._endgame_generation:
             return
-        self.solutions_panel.show_endgame_text(f"Fin de partie : erreur ({message})")
+        if self.solutions_panel.pre_endgame_group.isHidden():
+            self.solutions_panel.show_endgame_text(f"Fin de partie : erreur ({message})")
+        else:
+            self.solutions_panel.pre_endgame_status.setText(f"Analyse incomplète : erreur ({message})")
 
     def closeEvent(self, event) -> None:
         workers = list(self._retired_workers)

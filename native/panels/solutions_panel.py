@@ -43,6 +43,7 @@ class SolutionsPanel(QWidget):
         self._run = run
         self._solutions: list[str] = []
         self._endgame_display = False
+        self._advice_payload = None
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.scroll_area = QScrollArea()
@@ -146,6 +147,35 @@ class SolutionsPanel(QWidget):
         self.ev_plus_list = QListWidget()
         self.ev_plus_list.setMaximumHeight(80)
         analysis.addWidget(self.ev_plus_list)
+
+        self.pre_endgame_group = QGroupBox("Anticipation — risques et liste noire")
+        pre = QVBoxLayout(self.pre_endgame_group)
+        self.pre_endgame_status = QLabel()
+        self.pre_endgame_status.setWordWrap(True)
+        pre.addWidget(self.pre_endgame_status)
+        self.risk_questions_title = QLabel("Questions à risque — issue de 40 % à moins de 50 %")
+        self.risk_questions_title.setWordWrap(True)
+        pre.addWidget(self.risk_questions_title)
+        self.risk_questions = QListWidget()
+        self.risk_questions.setWordWrap(True)
+        self.risk_questions.setMaximumHeight(150)
+        pre.addWidget(self.risk_questions)
+        self.blacklist_title = QLabel("Liste noire — une seule issue sous 40 % suffit")
+        self.blacklist_title.setWordWrap(True)
+        pre.addWidget(self.blacklist_title)
+        self.blacklist = QListWidget()
+        self.blacklist.setWordWrap(True)
+        self.blacklist.setMaximumHeight(150)
+        pre.addWidget(self.blacklist)
+        self.validated_questions_title = QLabel("Filtre validé — toutes les issues ≥ 40 %")
+        self.validated_questions_title.setWordWrap(True)
+        pre.addWidget(self.validated_questions_title)
+        self.validated_questions = QListWidget()
+        self.validated_questions.setWordWrap(True)
+        self.validated_questions.setMaximumHeight(110)
+        pre.addWidget(self.validated_questions)
+        self.pre_endgame_group.hide()
+        layout.addWidget(self.pre_endgame_group)
 
         attempts_row = QHBoxLayout()
         self.a_me_label = QLabel()
@@ -266,7 +296,87 @@ class SolutionsPanel(QWidget):
         self.null_questions_combo.clear()
         self.record_null_btn.setEnabled(False)
 
+    def hide_pre_endgame(self) -> None:
+        self.pre_endgame_group.hide()
+        self.blacklist.clear()
+        self.risk_questions.clear()
+        self.validated_questions.clear()
+        for widget in (self.blacklist_title, self.blacklist, self.risk_questions_title,
+                       self.risk_questions, self.validated_questions_title, self.validated_questions):
+            widget.hide()
+
+    def show_pre_endgame_pending(self) -> None:
+        self.pre_endgame_group.show()
+        self.pre_endgame_status.setText(
+            "Analyse de mes prochaines questions, avant leur réponse. Budget : 55 s. "
+            "Recherche des issues à ≤ 20 candidats…"
+        )
+
+    def set_pre_endgame_result(self, result: dict) -> None:
+        self.pre_endgame_group.show()
+        questions = result['questions']
+        banned = {q['label'] for q in questions if q['status'] == 'blacklisted'}
+        validated = sorted((q for q in questions if q['status'] == 'validated'), key=lambda q: -q['ev'])
+        incomplete = [q for q in questions if q['status'] == 'incomplete']
+        state = "Terminée" if result['finished'] else "En cours"
+        scan = "" if result['discovery_complete'] else " Repérage des questions incomplet."
+        self.pre_endgame_status.setText(
+            f"{state} ({result['elapsed_s']:.1f} s) : {len(banned)} exclues, "
+            f"{len(validated)} validées, {len(incomplete)} incomplètes.{scan} "
+            "Hypothèse : je pose la prochaine question. Probabilités estimées par le modèle. "
+            "Les issues à plus de 20 candidats restent inconnues ; une analyse incomplète ne valide pas le filtre."
+        )
+        self.pre_endgame_status.setToolTip("Analyses incomplètes :\n" + "\n".join(q['label'] for q in incomplete))
+        self.risk_questions.clear()
+        risks = [(b['p_win'], q['label'], b) for q in questions if q['status'] != 'blacklisted'
+                 for b in q.get('branches', []) if b.get('p_win') is not None
+                 and .4 - 1e-12 <= b['p_win'] < .5 - 1e-12]
+        for value, label, b in sorted(risks, key=lambda item: (item[0], item[1])):
+            probability = f"{value:.1%}".replace('.', ',')
+            self.risk_questions.addItem(
+                f"P = {probability} — {label} → {b['answer']} ({b['n']} candidats)"
+            )
+        self.risk_questions_title.setVisible(bool(risks))
+        self.risk_questions.setVisible(bool(risks))
+        self.blacklist_title.setVisible(bool(banned))
+        self.blacklist.setVisible(bool(banned))
+        self.validated_questions_title.setVisible(bool(validated))
+        self.validated_questions.setVisible(bool(validated))
+        self.blacklist.clear()
+        for q in questions:
+            if q['status'] == 'blacklisted':
+                b = q['danger']
+                self.blacklist.addItem(f"P = {b['p_win']:.1%} — {q['label']} → {b['answer']} ({b['n']} candidats)")
+        self.validated_questions.clear()
+        for q in validated:
+            self.validated_questions.addItem(f"EV {q['ev']:.1%}, minimum {q['worst']:.1%} — {q['label']}")
+        if self._advice_payload is None:
+            return
+        payload = self._advice_payload
+        race = payload['race']
+        ordered = ([race['best_question']] if race['best_question'] else []) + race['ranked_alternatives']
+        allowed = [q for q in ordered if q['label'] not in banned]
+        if validated:
+            best = validated[0]
+            self.best_question_label.setText("Meilleure EV parmi les questions validées : " + best['label'])
+            self.p_win_label.setText(f"EV = {best['ev']:.1%} ; pire issue = {best['worst']:.1%} (modèle)")
+        else:
+            self.best_question_label.setText(
+                "Classement rapide, filtre non validé : " + format_question_label(allowed[0])
+                if allowed else "Aucune question restante dans le classement rapide."
+            )
+            self.p_win_label.setText("Aucune EV entièrement validée pour le moment.")
+        self.alternatives_list.clear()
+        for q in allowed[:MAX_ALTERNATIVES_SHOWN]:
+            self.alternatives_list.addItem(format_question_label(q))
+        self.ev_plus_list.clear()
+        for q in payload.get('ev_plus_questions') or []:
+            if q['label'] not in banned:
+                self.ev_plus_list.addItem(format_ev_question_label(q))
+
     def refresh(self, payload: dict) -> None:
+        self.hide_pre_endgame()
+        self._advice_payload = payload
         self._solutions = payload["solutions"]
         result = self.game_state.result
         if self._shown_started_at != self.game_state.started_at or (self._shown_result and not result):
