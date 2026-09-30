@@ -44,6 +44,11 @@ def build_universe(solver, clue, n_max=ENDGAME_N_MAX, should_cancel=_never):
     sols = solver.enumerate_solutions(clue, limit=n_max + 1, should_cancel=should_cancel)
     if not sols or len(sols) > n_max:
         return None
+    return universe_from_solutions(sols, clue, should_cancel)
+
+
+def universe_from_solutions(sols, clue, should_cancel=_never):
+    """Build partitions from an already enumerated, complete public pool."""
     candidates = [tuple(sol[p] for p in POSITIONS) for sol in sols]
     questions = []
     def add(qtype, label, answer):
