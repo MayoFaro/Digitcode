@@ -147,17 +147,28 @@ class SolutionsPanel(QWidget):
         self.ev_plus_list.setMaximumHeight(80)
         analysis.addWidget(self.ev_plus_list)
 
-        self.pre_endgame_group = QGroupBox("Anticipation — seuil de risque 40 %")
+        self.pre_endgame_group = QGroupBox("Anticipation — risques et liste noire")
         pre = QVBoxLayout(self.pre_endgame_group)
         self.pre_endgame_status = QLabel()
         self.pre_endgame_status.setWordWrap(True)
         pre.addWidget(self.pre_endgame_status)
-        pre.addWidget(QLabel("Liste noire — une seule issue sous 40 % suffit"))
+        self.risk_questions_title = QLabel("Questions à risque — issue de 40 % à moins de 50 %")
+        self.risk_questions_title.setWordWrap(True)
+        pre.addWidget(self.risk_questions_title)
+        self.risk_questions = QListWidget()
+        self.risk_questions.setWordWrap(True)
+        self.risk_questions.setMaximumHeight(150)
+        pre.addWidget(self.risk_questions)
+        self.blacklist_title = QLabel("Liste noire — une seule issue sous 40 % suffit")
+        self.blacklist_title.setWordWrap(True)
+        pre.addWidget(self.blacklist_title)
         self.blacklist = QListWidget()
         self.blacklist.setWordWrap(True)
         self.blacklist.setMaximumHeight(150)
         pre.addWidget(self.blacklist)
-        pre.addWidget(QLabel("Filtre validé — toutes les issues ≥ 40 %"))
+        self.validated_questions_title = QLabel("Filtre validé — toutes les issues ≥ 40 %")
+        self.validated_questions_title.setWordWrap(True)
+        pre.addWidget(self.validated_questions_title)
         self.validated_questions = QListWidget()
         self.validated_questions.setWordWrap(True)
         self.validated_questions.setMaximumHeight(110)
@@ -263,7 +274,11 @@ class SolutionsPanel(QWidget):
     def hide_pre_endgame(self) -> None:
         self.pre_endgame_group.hide()
         self.blacklist.clear()
+        self.risk_questions.clear()
         self.validated_questions.clear()
+        for widget in (self.blacklist_title, self.blacklist, self.risk_questions_title,
+                       self.risk_questions, self.validated_questions_title, self.validated_questions):
+            widget.hide()
 
     def show_pre_endgame_pending(self) -> None:
         self.pre_endgame_group.show()
@@ -287,6 +302,21 @@ class SolutionsPanel(QWidget):
             "Les issues à plus de 20 candidats restent inconnues ; une analyse incomplète ne valide pas le filtre."
         )
         self.pre_endgame_status.setToolTip("Analyses incomplètes :\n" + "\n".join(q['label'] for q in incomplete))
+        self.risk_questions.clear()
+        risks = [(b['p_win'], q['label'], b) for q in questions if q['status'] != 'blacklisted'
+                 for b in q.get('branches', []) if b.get('p_win') is not None
+                 and .4 - 1e-12 <= b['p_win'] < .5 - 1e-12]
+        for value, label, b in sorted(risks, key=lambda item: (item[0], item[1])):
+            probability = f"{value:.1%}".replace('.', ',')
+            self.risk_questions.addItem(
+                f"P = {probability} — {label} → {b['answer']} ({b['n']} candidats)"
+            )
+        self.risk_questions_title.setVisible(bool(risks))
+        self.risk_questions.setVisible(bool(risks))
+        self.blacklist_title.setVisible(bool(banned))
+        self.blacklist.setVisible(bool(banned))
+        self.validated_questions_title.setVisible(bool(validated))
+        self.validated_questions.setVisible(bool(validated))
         self.blacklist.clear()
         for q in questions:
             if q['status'] == 'blacklisted':

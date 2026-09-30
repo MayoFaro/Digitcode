@@ -116,3 +116,9 @@ pas le seuil de la liste noire, qui reste à 40 %. Elle indique la probabilité
 minimale observée et se réinitialise avec la position. Les résultats périmés
 ne peuvent pas la réactiver. Le conseil du premier volet suit aussi le
 filtrage des questions, y compris après sélection d'une lettre.
+
+Les issues connues entre 40 % inclus et 50 % exclus sont affichées dans une
+liste « Questions à risque », même si l'EV globale de la question reste
+incomplète. Chaque ligne précise la question, la réponse, le nombre de
+candidats et la probabilité. Une question déjà exclue figure uniquement dans
+la liste noire avec son issue sous 40 %. Les listes vides sont masquées.

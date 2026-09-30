@@ -99,7 +99,7 @@ def test_risk_alert_is_shared_by_tabs_and_uses_50_not_blacklist_threshold(qapp):
         assert window.panels[0].isAncestorOf(block)
         assert not window.solutions_panel.isAncestorOf(block)
         assert not hasattr(window.panels[0], 'solutions_count_label')
-        result = dict(questions=[dict(label='H', status='incomplete', branches=[dict(p_win=.45)])],
+        result = dict(questions=[dict(label='H', status='incomplete', branches=[dict(p_win=.45, answer='3', n=16)])],
                       finished=False, discovery_complete=True, elapsed_s=.1)
         window._on_pre_endgame_finished(result, window._endgame_generation)
         assert window.solutions_panel.blacklist.count() == 0
@@ -130,3 +130,28 @@ def test_first_tab_keeps_filtered_advice_when_selecting_a_letter(qapp):
     assert panel.best_question_label.text() == 'Meilleure EV : H'
     panel.refresh(dict(payload))
     assert panel.best_question_label.text() != 'Meilleure EV : H'
+
+
+def test_warning_shows_question_even_when_no_branch_is_blacklisted(qapp):
+    panel = SolutionsPanel(GameState(), lambda fn: fn())
+    question = dict(label='Combien en colonne B ?', status='incomplete', branches=[
+        dict(answer='3', n=16, p_win=.495),
+        dict(answer='4', n=54, p_win=None),
+        dict(answer='5', n=4, p_win=.5),
+    ])
+    result = dict(questions=[question], finished=True, discovery_complete=True, elapsed_s=2.7)
+    panel.set_pre_endgame_result(result)
+    assert panel.risk_questions.count() == 1
+    text = panel.risk_questions.item(0).text()
+    assert '49,5%' in text and 'Combien en colonne B ?' in text
+    assert '→ 3' in text and '16 candidats' in text
+    assert not panel.risk_questions.isHidden()
+    assert panel.blacklist.isHidden() and panel.blacklist.count() == 0
+    assert panel.validated_questions.isHidden()
+    # If a later branch blacklists the question, show it only in that list.
+    question.update(status='blacklisted', danger=dict(answer='6', n=3, p_win=1/3))
+    panel.set_pre_endgame_result(result)
+    assert panel.risk_questions.count() == 0 and panel.risk_questions.isHidden()
+    assert panel.blacklist.count() == 1 and not panel.blacklist.isHidden()
+    panel.hide_pre_endgame()
+    assert panel.risk_questions.count() == 0
