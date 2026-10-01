@@ -96,14 +96,14 @@ def test_risk_alert_is_shared_by_tabs_and_uses_50_not_blacklist_threshold(qapp):
     window.show()
     try:
         block = window.solutions_panel.pre_endgame_group
-        assert window.panels[0].isAncestorOf(block)
+        assert window.ev_panel.isAncestorOf(block)
         assert not window.solutions_panel.isAncestorOf(block)
         assert not hasattr(window.panels[0], 'solutions_count_label')
         result = dict(questions=[dict(label='H', status='incomplete', branches=[dict(p_win=.45, answer='3', n=16)])],
                       finished=False, discovery_complete=True, elapsed_s=.1)
         window._on_pre_endgame_finished(result, window._endgame_generation)
         assert window.solutions_panel.blacklist.count() == 0
-        for tab in range(3):
+        for tab in range(4):
             window._on_tab_clicked(tab)
             assert window.risk_alert.isVisible()
             assert '45,0%' in window.risk_alert.text()

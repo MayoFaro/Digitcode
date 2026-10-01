@@ -24,9 +24,9 @@ def test_window_is_always_on_top(qapp):
     assert window.windowFlags() & Qt.WindowStaysOnTopHint
 
 
-def test_window_has_three_tabs(qapp):
+def test_window_has_four_tabs(qapp):
     window = MainWindow()
-    assert len(window.tab_buttons) == 3
+    assert len(window.tab_buttons) == 4
     assert [b.text() for b in window.tab_buttons] == TAB_TITLES
 
 

@@ -155,3 +155,14 @@ def test_large_reserve_compression_matches_uncompressed_search(n):
             for used in (0, 1):
                 assert compressed.value(full, -1, a, b, mover, n + 2, used) == pytest.approx(
                     uncompressed.value(full, -1, a, b, mover, n + 2, used))
+
+
+def test_ranked_questions_export_every_branch_and_worst_value():
+    solver = make_solver({'X': {5, 6}, 'Y': {1, 2}})
+    result = evaluate_endgame(solver, Clue(), 1, 1, frozenset())
+    assert result['complete'] and result['ranked_questions']
+    for q in result['ranked_questions']:
+        branches = q['branches']
+        assert sum(b['prob'] for b in branches) == pytest.approx(1)
+        assert q['worst'] == min(b['value'] for b in branches)
+        assert q['p_win'] == pytest.approx(sum(b['prob'] * b['value'] for b in branches))

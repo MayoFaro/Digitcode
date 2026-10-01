@@ -1,4 +1,4 @@
-"""Progressive, short-circuit risk screening before the <=20 endgame.
+"""Progressive risk and question evaluation before the <=20 endgame.
 
 Only complete post-question values can blacklist a question. Large and timed
 out branches stay unknown; never substitute a heuristic for their win EV.
@@ -52,7 +52,7 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
 
     One deadline includes preparation. Globally smallest branches run first.
     A failed time slice retains the engine's memo for subsequent passes.
-    Once any branch is <40%, no other branch of that question is scheduled.
+    Risk flags persist while other evaluable branches continue for ranking.
     The result lists only informative questions with a reachable <=20 branch.
     """
     start = time.monotonic()
@@ -153,7 +153,7 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
     while pending:
         retry = []
         for task in pending:
-            refs = [(q, b) for q, b in task['refs'] if q['status'] != 'blacklisted']
+            refs = task['refs']
             if not refs:
                 continue
             try:
@@ -188,15 +188,17 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
                 b['p_win'] = value
                 if value < RISK_THRESHOLD - 1e-12:
                     q['status'] = 'blacklisted'
-                    q['danger'] = dict(b)
-                elif all(b2['p_win'] is not None for b2 in q['branches']):
-                    q['status'] = 'validated'
+                    if value < q.get('danger', {}).get('p_win', 1.0):
+                        q['danger'] = dict(b)
+                if all(b2['p_win'] is not None for b2 in q['branches']):
+                    if q['status'] != 'blacklisted':
+                        q['status'] = 'validated'
                     total = sum(b2['n_mine'] for b2 in q['branches'])
                     q['ev'] = sum(b2['p_win'] * b2['n_mine'] for b2 in q['branches']) / total
                     q['worst'] = min(b2['p_win'] for b2 in q['branches'])
             publish()
         pending = sorted(retry, key=lambda t: (
-            not any(q['status'] != 'blacklisted' and all(not b['capped'] and b['n'] <= ENDGAME_N_MAX
+            not any(all(not b['capped'] and b['n'] <= ENDGAME_N_MAX
                                                         for b in q['branches']) for q, _ in t['refs']),
             t['branch']['n'],
         ))

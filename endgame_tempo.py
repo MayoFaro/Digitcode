@@ -429,6 +429,7 @@ def evaluate_endgame(
     def fmt_question(r: dict, with_branches: bool) -> dict:
         q = questions[r["qi"]]
         out = {"qtype": q.qtype, "label": q.label, "p_win": r["p_win"],
+               "worst": min(b["value"] for b in r["branches"]),
                "is_null": len(q.classes) == 1,
                "entry": question_entry(q, q.answers[0]) if len(q.classes) == 1 else None}
         if with_branches:
@@ -484,7 +485,7 @@ def evaluate_endgame(
             if direct is not None else None
         ),
         "best_question": fmt_question(raw["questions"][0], True) if raw["questions"] else None,
-        "ranked_questions": [fmt_question(r, False) for r in raw["questions"]],
+        "ranked_questions": [fmt_question(r, True) for r in raw["questions"]],
         "best_informative_question": next((fmt_question(r, True) for r in raw["questions"]
                                             if len(questions[r["qi"]].classes) > 1), None),
         "best_null_question": next((fmt_question(r, True) for r in raw["questions"]

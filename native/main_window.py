@@ -23,6 +23,7 @@ from .panels.chiffres_panel import ChiffresPanel
 from .panels.comparaisons_panel import ComparaisonsPanel
 from .panels.endgame_format import ENDGAME_PENDING_TEXT, format_endgame
 from .panels.solutions_panel import SolutionsPanel
+from .panels.ev_panel import EVPanel
 from .solve_worker import SolveWorker
 
 WINDOW_WIDTH = 380
@@ -33,7 +34,7 @@ OPACITY_MAX = 1.0
 
 # Order matches the spec's volet 1/2/3 mapping of the web layout's
 # col-sums / col-digits / col-advice blocks.
-TAB_TITLES = ["Chiffres", "Comparaisons", "Solutions"]
+TAB_TITLES = ["Chiffres", "Comparaisons", "Solutions", "EV"]
 
 
 class MainWindow(QMainWindow):
@@ -97,7 +98,7 @@ class MainWindow(QMainWindow):
         self.solutions_label = QLabel()
         layout.addWidget(self.solutions_label)
 
-        # Outside the stack: the warning remains visible on all three tabs.
+        # Outside the stack: the warning remains visible on every tab.
         self.risk_alert = QLabel()
         self.risk_alert.setWordWrap(True)
         self.risk_alert.setTextFormat(Qt.PlainText)
@@ -116,6 +117,8 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
         self.solutions_panel = SolutionsPanel(self.game_state, self._run)
+        self.ev_panel = EVPanel(self.solutions_panel.pre_endgame_group)
+        self.solutions_panel.pre_endgame_status.hide()
         self.panels: list[QWidget] = [
             # Clue entry (row/col totals, comparisons, parity, segments) goes
             # through _mutate: instant, cancellable-background-recompute --
@@ -126,11 +129,8 @@ class MainWindow(QMainWindow):
             ChiffresPanel(self.game_state, self._mutate),
             ComparaisonsPanel(self.game_state, self._mutate),
             self.solutions_panel,
+            self.ev_panel,
         ]
-        # Move the existing live block; its update methods remain shared with
-        # the Solutions advice, so there is only one copy of the result.
-        first_layout = self.panels[0].content_layout
-        first_layout.insertWidget(first_layout.count() - 1, self.solutions_panel.pre_endgame_group)
         for panel in self.panels:
             self.stack.addWidget(panel)
 
@@ -296,6 +296,7 @@ class MainWindow(QMainWindow):
         self._endgame_generation += 1
         self.risk_alert.hide()
         self.solutions_panel.hide_pre_endgame()
+        self.ev_panel.clear()
 
     def _schedule_endgame(self, payload: dict) -> None:
         """After a full render, screen upcoming questions or analyze endgame."""
@@ -327,13 +328,18 @@ class MainWindow(QMainWindow):
         self._endgame_worker = worker
         if pre:
             self.solutions_panel.show_pre_endgame_pending()
+            self.ev_panel.status.setText("Calcul des EV en cours…")
         else:
             self.solutions_panel.show_endgame_text(ENDGAME_PENDING_TEXT)
+            self.ev_panel.status.setText("Calcul de fin de partie en cours…")
         worker.start()
 
     def _on_pre_endgame_finished(self, result, generation: int) -> None:
         if generation == self._endgame_generation:
             self.solutions_panel.set_pre_endgame_result(result)
+            self.ev_panel.set_pre_endgame_result(result)
+            self.solutions_panel.validated_questions.hide()
+            self.solutions_panel.validated_questions_title.hide()
             panel = self.solutions_panel
             self.panels[0].set_pre_endgame_advice(
                 panel.best_question_label.text(),
@@ -361,6 +367,7 @@ class MainWindow(QMainWindow):
             self.solutions_panel.hide_endgame()
         else:
             self.solutions_panel.set_endgame_result(result)
+            self.ev_panel.set_endgame_result(result)
             values = [result['p_win']] if result.get('p_win') is not None else []
             for key in ('best_question', 'best_informative_question', 'best_null_question'):
                 values.extend(b['value'] for b in (result.get(key) or {}).get('branches', []))
@@ -369,6 +376,7 @@ class MainWindow(QMainWindow):
     def _on_endgame_failed(self, message: str, generation: int) -> None:
         if generation != self._endgame_generation:
             return
+        self.ev_panel.status.setText(f"Analyse incomplète : erreur ({message})")
         if self.solutions_panel.pre_endgame_group.isHidden():
             self.solutions_panel.show_endgame_text(f"Fin de partie : erreur ({message})")
         else:

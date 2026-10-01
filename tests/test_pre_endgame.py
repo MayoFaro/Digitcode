@@ -49,7 +49,7 @@ def test_strict_threshold_and_weighted_ev_with_unknown_branches(monkeypatch):
     assert ux['ev'] is None  # the 54-candidate branch has no invented EV
 
 
-def test_blacklisting_stops_sibling_work_and_reuses_equivalent_branches(monkeypatch):
+def test_blacklisting_keeps_ranking_work_and_reuses_equivalent_branches(monkeypatch):
     calls = []
     def leaf(self, S, *args, **kwargs):
         calls.append(S)
@@ -59,8 +59,9 @@ def test_blacklisting_stops_sibling_work_and_reuses_equivalent_branches(monkeypa
     assert all(q['status'] == 'blacklisted' for q in result['questions'])
     assert len(calls) == len(set(calls))
     h = by_label(result, 'Combien en colonne H ?')
-    assert sum(b['p_win'] is not None for b in h['branches']) == 1
-    assert all(b['p_win'] is None for b in h['branches'] if b['n'] > 4)
+    assert all(b['p_win'] is not None for b in h['branches'])
+    assert h['ev'] == pytest.approx(.399)
+    assert h['worst'] == pytest.approx(.399)
 
 
 def test_wide_board_fallback_preserves_small_branch_values(monkeypatch):
