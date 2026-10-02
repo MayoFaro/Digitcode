@@ -66,6 +66,7 @@ body { font-family: sans-serif; max-width: 1400px; margin: 0 auto; padding: 1rem
 
 /* The two "<" / ">" selectors for one adjacent pair, side by side. */
 .cmp-pair { display: inline-flex; gap: 0.15rem; }
+.cmp-pair-vertical { flex-direction: column; align-items: center; }
 .cmp-pair .chip { min-width: 1.6rem; margin: 0; }
 
 /* --- Parity + segment grid --------------------------------------------------- */

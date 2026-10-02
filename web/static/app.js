@@ -191,21 +191,27 @@ function renderComparisons(state) {
   // backend swaps a pair's comparison in place). Tapping the already-active
   // selector again clears the constraint. A contradiction with the current
   // board comes back as an error banner, not a silent fallback.
-  const connectorNode = (left, right) => {
+  const connectorNode = (left, right, vertical = false) => {
     const rel = currentRelation(state.comparisons, left, right);
     const group = document.createElement("span");
-    group.className = "cmp-pair";
+    group.className = vertical ? "cmp-pair cmp-pair-vertical" : "cmp-pair";
 
-    const relChip = (want) => makeChip(want, { selected: rel === want }, () => {
-      let body;
-      if (rel === want) {
-        const stored = findStoredComparison(state.comparisons, left, right);
-        body = { type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true };
-      } else {
-        body = { type: "comparison", left, rel: want, right };
-      }
-      runMutation(() => postClue(body));
-    });
+    const relChip = (want) => {
+      const label = vertical ? (want === "<" ? "∧" : "∨") : want;
+      const chip = makeChip(label, { selected: rel === want }, () => {
+        let body;
+        if (rel === want) {
+          const stored = findStoredComparison(state.comparisons, left, right);
+          body = { type: "comparison", left: stored[0], rel: stored[1], right: stored[2], remove: true };
+        } else {
+          body = { type: "comparison", left, rel: want, right };
+        }
+        runMutation(() => postClue(body));
+      });
+      chip.title = `${left} ${want} ${right}`;
+      chip.setAttribute("aria-label", chip.title);
+      return chip;
+    };
 
     group.appendChild(relChip("<"));
     group.appendChild(relChip(">"));
@@ -218,9 +224,9 @@ function renderComparisons(state) {
   cell(1, 4, connectorNode("U", "V"));
   cell(1, 5, letterNode("V"));
 
-  cell(2, 1, connectorNode("T", "W"));
-  cell(2, 3, connectorNode("U", "X"));
-  cell(2, 5, connectorNode("V", "Y"));
+  cell(2, 1, connectorNode("T", "W", true));
+  cell(2, 3, connectorNode("U", "X", true));
+  cell(2, 5, connectorNode("V", "Y", true));
 
   cell(3, 1, letterNode("W"));
   cell(3, 2, connectorNode("W", "X"));

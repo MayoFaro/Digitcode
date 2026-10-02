@@ -91,12 +91,15 @@ class ComparaisonsPanel(QWidget):
             label = QLabel(f"<b>{pos}</b>")
             self.cmp_grid.addWidget(label, row, col, alignment=Qt.AlignCenter)
 
-        def connector(left, right, row, col):
-            lt_chip = ChipButton("<")
-            gt_chip = ChipButton(">")
+        def connector(left, right, row, col, vertical=False):
+            # The pointed end faces the smaller digit.
+            lt_chip = ChipButton("∧" if vertical else "<")
+            gt_chip = ChipButton("∨" if vertical else ">")
+            lt_chip.setToolTip(f"{left} < {right}")
+            gt_chip.setToolTip(f"{left} > {right}")
             lt_chip.clicked.connect(lambda: self._on_comparison_clicked(left, right, "<"))
             gt_chip.clicked.connect(lambda: self._on_comparison_clicked(left, right, ">"))
-            pair_row = QHBoxLayout()
+            pair_row = QVBoxLayout() if vertical else QHBoxLayout()
             pair_row.setContentsMargins(0, 0, 0, 0)
             pair_row.setSpacing(2)
             pair_row.addWidget(lt_chip)
@@ -112,9 +115,9 @@ class ComparaisonsPanel(QWidget):
         connector("U", "V", 0, 3)
         letter_label("V", 0, 4)
 
-        connector("T", "W", 1, 0)
-        connector("U", "X", 1, 2)
-        connector("V", "Y", 1, 4)
+        connector("T", "W", 1, 0, vertical=True)
+        connector("U", "X", 1, 2, vertical=True)
+        connector("V", "Y", 1, 4, vertical=True)
 
         letter_label("W", 2, 0)
         connector("W", "X", 2, 1)
