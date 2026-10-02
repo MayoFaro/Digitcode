@@ -318,7 +318,8 @@ class TempoEndgameSolver:
 
     # --- root -----------------------------------------------------------
 
-    def analyze(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int, used: int = 0) -> dict:
+    def analyze(self, S: int, e: int, a_me: int, a_opp: int, m_fail: int, used: int = 0,
+                on_progress=lambda questions: None) -> dict:
         """Rank every unasked question and the direct proposal at the root."""
         e = _keep(e, S)
         mine = S & ~(1 << e) if e >= 0 else S
@@ -338,6 +339,7 @@ class TempoEndgameSolver:
             qv, by_mask = evaluated[signature]
             branches = [dict(by_mask[c & S], ci=ci) for ci, c in enumerate(q.classes) if c & S in by_mask]
             questions.append({"qi": qi, "p_win": qv, "branches": branches})
+            on_progress(questions)
         questions.sort(key=lambda r: -r["p_win"])
         if not questions or direct["p_win"] >= questions[0]["p_win"]:
             return {"p_win": direct["p_win"], "decision": "guess_now", "direct": direct, "questions": questions}
@@ -377,14 +379,15 @@ def evaluate_endgame(
     solver: DigitcodeSolver, clue: Clue, a_me: int, a_opp: int,
     my_excluded: FrozenSet[Candidate], opp_fail_pool_size: int = 0, *,
     phase: str = PHASE_MY_TURN,
-    n_max: int = ENDGAME_N_MAX, time_budget_s: float = ENDGAME_TIME_BUDGET_S,
+    n_max: int = ENDGAME_N_MAX, time_budget_s: float | None = ENDGAME_TIME_BUDGET_S,
     should_cancel: Callable[[], bool] = _never,
+    on_progress: Callable[[dict], None] = lambda result: None,
 ) -> Optional[dict]:
     """Display-ready endgame recommendation, or None when the public pool
     is empty or larger than `n_max`. `solver` must already be propagated
     for `clue`. `phase` says where in the turn order the board is (see the
     PHASE_* constants): only PHASE_MY_TURN ranks questions."""
-    deadline = time.monotonic() + time_budget_s
+    deadline = float('inf') if time_budget_s is None else time.monotonic() + time_budget_s
     def check():
         if should_cancel():
             raise Cancelled()
@@ -415,21 +418,11 @@ def evaluate_endgame(
         PHASE_OPP_TURN: engine.analyze_opp_turn,
         PHASE_OPP_POST_QUESTION: engine.analyze_opp_post_question,
     }
-    try:
-        if phase not in analyzers:
-            raise ValueError("Phase de tour inconnue")
-        if a_me == 0 or a_opp == 0:
-            raw = {"p_win": 0.5 if a_me == a_opp == 0 else float(a_me > 0),
-                   "decision": "won" if a_me > 0 else "none", "direct": None, "questions": []}
-        else:
-            raw = analyzers[phase](full, e, a_me, a_opp, opp_fail_pool_size)
-    except EndgameBudgetExceeded:
-        return {"complete": False, "n_public": n}
-
     def fmt_question(r: dict, with_branches: bool) -> dict:
         q = questions[r["qi"]]
         out = {"qtype": q.qtype, "label": q.label, "p_win": r["p_win"],
                "worst": min(b["value"] for b in r["branches"]),
+               "best": max(b["value"] for b in r["branches"]),
                "is_null": len(q.classes) == 1,
                "entry": question_entry(q, q.answers[0]) if len(q.classes) == 1 else None}
         if with_branches:
@@ -449,6 +442,24 @@ def evaluate_endgame(
                 for b in r["branches"]
             ]
         return out
+
+    def publish(evaluated):
+        on_progress(dict(complete=False, progressive=True, phase=phase, n_public=n,
+                         ranked_questions=[fmt_question(r, True) for r in evaluated]))
+
+    try:
+        if phase not in analyzers:
+            raise ValueError("Phase de tour inconnue")
+        if a_me == 0 or a_opp == 0:
+            raw = {"p_win": 0.5 if a_me == a_opp == 0 else float(a_me > 0),
+                   "decision": "won" if a_me > 0 else "none", "direct": None, "questions": []}
+        else:
+            if phase == PHASE_MY_TURN:
+                raw = engine.analyze(full, e, a_me, a_opp, opp_fail_pool_size, on_progress=publish)
+            else:
+                raw = analyzers[phase](full, e, a_me, a_opp, opp_fail_pool_size)
+    except EndgameBudgetExceeded:
+        return {"complete": False, "n_public": n}
 
     direct = raw["direct"]
     # Presentation-only comparisons: fixed question-then-guess, and a null

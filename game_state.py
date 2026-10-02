@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Callable
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from .game_archive import save_game
@@ -15,7 +16,7 @@ from .endgame import (
     PHASE_OPP_TURN,
 )
 from .endgame_tempo import evaluate_endgame, PHASE_OPP_POST_QUESTION, PHASES
-from .endgame import ENDGAME_N_MAX
+from .endgame import ENDGAME_N_MAX, ENDGAME_TIME_BUDGET_S
 
 # Cap for the per-question solution-count display (how many solutions each
 # reachable answer could leave). Must stay a lower bound, never a fabricated
@@ -265,8 +266,36 @@ class GameState:
         self._state_history: list[dict] = []
 
     def payload(self) -> dict:
+        if getattr(self, '_defer_payload', False):
+            return self.pending_payload()
         return {**self.build_payload_from(self.clue, self.a_me, self.a_opp, self.my_excluded),
                 "result": self.result}
+
+    @contextmanager
+    def defer_payload(self):
+        """Native actions mutate synchronously but defer expensive analysis."""
+        previous = getattr(self, '_defer_payload', False)
+        self._defer_payload = True
+        try:
+            yield
+        finally:
+            self._defer_payload = previous
+
+    def pending_payload(self) -> dict:
+        solver = DigitcodeSolver()
+        solver.propagate(self.clue)
+        return {
+            **self.build_quick_payload_from(self.clue),
+            'analysis_pending': True, 'n_solutions_total': None, 'solutions': [],
+            'trace': solver.trace, 'ev_plus_questions': [], 'result': self.result,
+            'a_me': self.a_me, 'a_opp': self.a_opp, 'my_excluded': [],
+            'race': dict(exact=False, race_aware=False, p_win=0, guess_now=False,
+                         best_question=None, ranked_alternatives=[]),
+            'reachable_row_sums': {row: solver._reachable_sums(row_contributors(row))
+                                   for row in ROW_TOP + ROW_BOTTOM if row not in self.clue.row_totals},
+            'reachable_col_sums': {col: solver._reachable_sums(col_contributors(col))
+                                   for col in COLS if col not in self.clue.col_totals},
+        }
 
     @staticmethod
     def build_quick_payload_from(clue: Clue) -> dict:
@@ -378,6 +407,8 @@ class GameState:
     def build_endgame_from(
         clue: Clue, a_me: int, a_opp: int, excluded: frozenset, opp_fail_pool_size: int,
         should_cancel: Callable[[], bool] = lambda: False, phase: str = PHASE_MY_TURN,
+        *, time_budget_s: float | None = ENDGAME_TIME_BUDGET_S,
+        on_progress: Callable[[dict], None] = lambda result: None,
     ) -> dict | None:
         """Exact endgame recommendation (see endgame.evaluate_endgame), or
         None when the board still has more than endgame.ENDGAME_N_MAX
@@ -389,7 +420,8 @@ class GameState:
         solver.propagate(clue)  # may raise ValueError; callers must catch it
         return evaluate_endgame(
             solver, clue, a_me, a_opp, excluded, opp_fail_pool_size,
-            phase=phase, should_cancel=should_cancel,
+            phase=phase, should_cancel=should_cancel, time_budget_s=time_budget_s,
+            on_progress=on_progress,
         )
 
     def endgame(self) -> dict | None:

@@ -56,7 +56,8 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
     The result lists only informative questions with a reachable <=20 branch.
     """
     start = time.monotonic()
-    deadline = start + max(0.0, min(time_budget_s, MAX_TIME_BUDGET_S))
+    deadline = (float('inf') if time_budget_s is None else
+                start + max(0.0, min(time_budget_s, MAX_TIME_BUDGET_S)))
     result = dict(kind='pre_endgame', threshold=RISK_THRESHOLD, questions=[],
                   discovery_complete=False, finished=False, elapsed_s=0.0)
 
@@ -88,7 +89,7 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
         if len(branches) <= 1 or not any(not b['capped'] and b['n'] <= ENDGAME_N_MAX for b in live):
             return
         q = dict(qtype=spec['qtype'], label=spec['label'], status='incomplete',
-                 branches=[], ev=None, worst=None)
+                 branches=[], ev=None, worst=None, best=None)
         for b in live:
             record = {k: b[k] for k in ('answer', 'n', 'n_mine', 'capped')}
             record['p_win'] = None
@@ -196,6 +197,7 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
                     total = sum(b2['n_mine'] for b2 in q['branches'])
                     q['ev'] = sum(b2['p_win'] * b2['n_mine'] for b2 in q['branches']) / total
                     q['worst'] = min(b2['p_win'] for b2 in q['branches'])
+                    q['best'] = max(b2['p_win'] for b2 in q['branches'])
             publish()
         pending = sorted(retry, key=lambda t: (
             not any(all(not b['capped'] and b['n'] <= ENDGAME_N_MAX

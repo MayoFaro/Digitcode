@@ -21,7 +21,7 @@ from .endgame_worker import EndgameWorker
 from .pre_endgame_worker import PreEndgameWorker
 from .panels.chiffres_panel import ChiffresPanel
 from .panels.comparaisons_panel import ComparaisonsPanel
-from .panels.endgame_format import ENDGAME_PENDING_TEXT, format_endgame
+from .panels.endgame_format import ENDGAME_PENDING_TEXT
 from .panels.solutions_panel import SolutionsPanel
 from .panels.ev_panel import EVPanel
 from .solve_worker import SolveWorker
@@ -32,9 +32,62 @@ OPACITY_STEP = 0.05
 OPACITY_MIN = 0.2
 OPACITY_MAX = 1.0
 
-# Order matches the spec's volet 1/2/3 mapping of the web layout's
-# col-sums / col-digits / col-advice blocks.
 TAB_TITLES = ["Chiffres", "Comparaisons", "Solutions", "EV"]
+
+
+def _add_tabs(owner, layout, titles):
+    row = QHBoxLayout()
+    buttons = []
+    group = QButtonGroup(owner)
+    group.setExclusive(True)
+    for index, title in enumerate(titles):
+        button = QPushButton(title)
+        button.setCheckable(True)
+        group.addButton(button, index)
+        row.addWidget(button)
+        buttons.append(button)
+    buttons[0].setChecked(True)
+    layout.addLayout(row)
+    stack = QStackedWidget()
+    layout.addWidget(stack)
+    group.idClicked.connect(stack.setCurrentIndex)
+    return buttons, stack
+
+
+def _risk_label():
+    label = QLabel()
+    label.setWordWrap(True)
+    label.setTextFormat(Qt.PlainText)
+    label.setStyleSheet("background: #b71c1c; color: white; font-weight: bold; padding: 7px; border-radius: 4px;")
+    label.hide()
+    return label
+
+
+class AnalysisWindow(QMainWindow):
+    def __init__(self, controller):
+        # No Qt parent: both windows have the same stacking priority.
+        super().__init__()
+        self.controller = controller
+        self.setWindowTitle("Digitcode — Analyse")
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
+        self.resize(580, 700)
+        central = QWidget()
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+        self.solutions_label = QLabel()
+        layout.addWidget(self.solutions_label)
+        self.risk_alert = _risk_label()
+        layout.addWidget(self.risk_alert)
+        self.busy_label = QLabel("Calcul en cours… La saisie reste disponible.")
+        self.busy_label.setStyleSheet("color: #888; font-style: italic;")
+        self.busy_label.hide()
+        layout.addWidget(self.busy_label)
+        self.tab_buttons, self.stack = _add_tabs(self, layout, TAB_TITLES[2:])
+
+    def closeEvent(self, event):
+        if not self.controller._closing:
+            self.controller.close()
+        super().closeEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -43,11 +96,7 @@ class MainWindow(QMainWindow):
         self.game_state = game_state or GameState()
         self._generation = 0
         self._worker: SolveWorker | None = None
-        # Last full payload rendered (from _run or a finished worker), kept
-        # so _mutate can synthesize an immediate "quick" render (see
-        # build_quick_payload_from) by overlaying fresh clue-derived fields
-        # on top of it, without needing to wait for the next full payload
-        # just to show a chip as newly set.
+        # Input is rendered immediately; analysis belongs to a fixed snapshot.
         self._last_payload: dict | None = None
         # Workers superseded by a newer move: cancelled but not necessarily
         # stopped yet. Kept alive here on purpose -- PySide6 does not keep a
@@ -58,14 +107,11 @@ class MainWindow(QMainWindow):
         # running", observed crash, not a theoretical concern). Each entry
         # removes itself via _cleanup_worker once its own `finished` fires.
         self._retired_workers: list[QThread] = []
-        # Exact endgame search (endgame.py), run on its own worker after each
-        # full payload once the board is small enough. Its own generation
-        # counter: bumped by _cancel_endgame, so a result from a superseded
-        # search is ignored.
-        self._endgame_worker: EndgameWorker | None = None
+        # Separate generations discard both old payloads and old EV updates.
+        self._endgame_worker: EndgameWorker | PreEndgameWorker | None = None
         self._endgame_generation = 0
 
-        self.setWindowTitle("Digitcode")
+        self.setWindowTitle("Digitcode — Saisie")
         self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
         self.setFixedWidth(WINDOW_WIDTH)
 
@@ -81,147 +127,92 @@ class MainWindow(QMainWindow):
         self.error_label.hide()
         layout.addWidget(self.error_label)
 
-        tabs_row = QHBoxLayout()
-        self.tab_buttons: list[QPushButton] = []
-        self.tab_group = QButtonGroup(self)
-        self.tab_group.setExclusive(True)
-        for i, title in enumerate(TAB_TITLES):
-            btn = QPushButton(title)
-            btn.setCheckable(True)
-            self.tab_group.addButton(btn, i)
-            tabs_row.addWidget(btn)
-            self.tab_buttons.append(btn)
-        self.tab_buttons[0].setChecked(True)
+        self.tab_buttons, self.stack = _add_tabs(self, layout, TAB_TITLES[:2])
+        self.tab_group = self.tab_buttons[0].group()
         self.tab_group.idClicked.connect(self._on_tab_clicked)
-        layout.addLayout(tabs_row)
-
         self.solutions_label = QLabel()
-        layout.addWidget(self.solutions_label)
+        layout.insertWidget(1, self.solutions_label)
+        self.risk_alert = _risk_label()
+        layout.insertWidget(2, self.risk_alert)
 
-        # Outside the stack: the warning remains visible on every tab.
-        self.risk_alert = QLabel()
-        self.risk_alert.setWordWrap(True)
-        self.risk_alert.setTextFormat(Qt.PlainText)
-        self.risk_alert.setStyleSheet(
-            "background: #b71c1c; color: white; font-weight: bold; "
-            "padding: 7px; border-radius: 4px;"
-        )
-        self.risk_alert.hide()
-        layout.addWidget(self.risk_alert)
-
-        self.busy_label = QLabel("Calcul en cours…")
-        self.busy_label.setStyleSheet("color: #888; font-style: italic;")
-        self.busy_label.hide()
-        layout.addWidget(self.busy_label)
-
-        self.stack = QStackedWidget()
-        layout.addWidget(self.stack)
+        self.analysis_window = AnalysisWindow(self)
+        self.busy_label = self.analysis_window.busy_label
         self.solutions_panel = SolutionsPanel(self.game_state, self._run)
         self.ev_panel = EVPanel(self.solutions_panel.pre_endgame_group)
         self.solutions_panel.pre_endgame_status.hide()
         self.panels: list[QWidget] = [
-            # Clue entry (row/col totals, comparisons, parity, segments) goes
-            # through _mutate: instant, cancellable-background-recompute --
-            # see _mutate/_schedule_refresh. Undo/reset/miss-tracking
-            # (SolutionsPanel) stay on the original synchronous _run: rare
-            # actions where a brief block is acceptable, deliberately left
-            # out of scope (see the plan doc).
             ChiffresPanel(self.game_state, self._mutate),
             ComparaisonsPanel(self.game_state, self._mutate),
-            self.solutions_panel,
-            self.ev_panel,
+            self.solutions_panel, self.ev_panel,
         ]
-        for panel in self.panels:
+        for panel in self.panels[:2]:
             self.stack.addWidget(panel)
-
-        self._run(self.game_state.payload)
+        for panel in self.panels[2:]:
+            self.analysis_window.stack.addWidget(panel)
+        self._closing = False
+        self._positioned_analysis = False
+        self._render(self.game_state.pending_payload())
+        self._schedule_refresh()
 
         # Application-wide filter, not a wheelEvent override: Qt delivers
         # wheel events to the widget under the cursor, so a handler on the
         # window itself would never fire when scrolling over a button/panel.
         QApplication.instance().installEventFilter(self)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._positioned_analysis:
+            self.analysis_window.move(self.x() + self.width() + 12, self.y())
+            self._positioned_analysis = True
+        self.analysis_window.show()
+
     def eventFilter(self, obj: QWidget, event: QEvent) -> bool:
         if event.type() == QEvent.Wheel and event.modifiers() & Qt.ControlModifier:
-            step = OPACITY_STEP if event.angleDelta().y() > 0 else -OPACITY_STEP
-            opacity = min(OPACITY_MAX, max(OPACITY_MIN, self.windowOpacity() + step))
-            self.setWindowOpacity(opacity)
-            return True
+            target = obj.window() if isinstance(obj, QWidget) else None
+            if target in (self, self.analysis_window):
+                step = OPACITY_STEP if event.angleDelta().y() > 0 else -OPACITY_STEP
+                opacity = min(OPACITY_MAX, max(OPACITY_MIN, target.windowOpacity() + step))
+                target.setWindowOpacity(opacity)
+                return True
         return super().eventFilter(obj, event)
 
     def _on_tab_clicked(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
 
     def _run(self, fn: Callable[[], dict]) -> None:
-        """Apply one GameState mutation (or a plain payload() refresh) and
-        re-render. Disables the window and forces a repaint first so the
-        "busy" state is visible even though the call itself is synchronous
-        (see the design spec: race-strategy computation can take up to
-        ~1.5s, same budget the web app uses). Drains the event queue before
-        re-enabling so clicks made while disabled are dropped, not replayed
-        -- matching the web's runMutation, which deliberately ignores input
-        that arrives while a request is in flight. try/finally guarantees
-        the window can never be left permanently disabled, even if fn()
-        raises something other than ValueError."""
-        self.centralWidget().setEnabled(False)
-        QApplication.processEvents()
+        """Apply actions without computing a display payload in the GUI thread."""
         try:
-            payload = fn()
-        except ValueError as e:
-            self.error_label.setText("⚠️ " + str(e))
+            with self.game_state.defer_payload():
+                fn()
+        except ValueError as exc:
+            self.error_label.setText("⚠️ " + str(exc))
             self.error_label.show()
             return
-        except Exception as e:
-            self.error_label.setText(f"⚠️ Erreur inattendue : {e}")
+        except Exception as exc:
+            self.error_label.setText(f"⚠️ Erreur inattendue : {exc}")
             self.error_label.show()
             raise
-        else:
-            self._cancel_endgame()
-            self._generation += 1
-            if self._worker is not None:
-                self._worker.cancel()
-                self._retired_workers.append(self._worker)
-                self._worker = None
-            self.busy_label.hide()
-            self.error_label.hide()
-            self._render(payload)
-            self._schedule_endgame(payload)
-        finally:
-            QApplication.processEvents()
-            self.centralWidget().setEnabled(True)
+        self.error_label.hide()
+        self._render_quick()
+        self._schedule_refresh()
 
     def _render(self, payload: dict) -> None:
         self.risk_alert.hide()
+        self.analysis_window.risk_alert.hide()
         self._last_payload = payload
-        self.solutions_label.setText(f"Solutions restantes : {payload['n_solutions_total']}")
+        count = payload['n_solutions_total']
+        text = "Solutions restantes : calcul en cours…" if count is None else f"Solutions restantes : {count}"
+        self.solutions_label.setText(text)
+        self.analysis_window.solutions_label.setText(text)
         for panel in self.panels:
             panel.refresh(payload)
 
     def _render_quick(self) -> None:
-        """Immediate, cheap re-render right after a fast mutation: overlays
-        the just-mutated clue's own fields (already-set totals/comparisons/
-        parity/segments, plus a fresh domain snapshot -- all derivable from
-        a bare propagate(), no solution counting/race strategy) on top of
-        the last full payload. Without this, a click registers correctly
-        (the clue IS mutated instantly) but nothing on screen shows it
-        until the much slower background worker eventually delivers the
-        full payload -- which reads as an unresponsive window even though
-        it technically isn't one. See GameState.build_quick_payload_from."""
-        quick = GameState.build_quick_payload_from(self.game_state.clue)
-        merged = {**self._last_payload, **quick} if self._last_payload is not None else quick
-        self._render(merged)
+        """Show fresh clues and reachable sums; mark old analysis unavailable."""
+        self._render(self.game_state.pending_payload())
 
     def _mutate(self, fn_fast: Callable[[], None]) -> None:
-        """Apply one fast GameState mutation (see GameState.apply_clue_fast /
-        apply_clue_with_fallback_fast: validated via a cheap propagate()
-        call, no display payload computed) synchronously -- it's cheap, so
-        the window is never disabled for it -- render immediately so the
-        move visibly registers on screen (_render_quick), then hand the
-        expensive display recomputation (solution count, race strategy,
-        reachable sums) to a cancellable background worker. This is the
-        clue-entry counterpart of `_run`: unlike `_run`, the window stays
-        interactive and visibly up to date the whole time, including while
-        a previous worker is still winding down."""
+        """Validate and show a clue immediately, then restart isolated analysis."""
         try:
             fn_fast()
         except ValueError as e:
@@ -233,14 +224,9 @@ class MainWindow(QMainWindow):
         self._schedule_refresh()
 
     def _schedule_refresh(self) -> None:
-        """(Re)start the background computation of the display payload for
-        the current game_state.clue. Cancels whatever the previous worker
-        was doing without waiting for it to actually stop -- always safe,
-        since an additional clue can only shrink the remaining solution
-        space, so a stale in-flight computation is never worth blocking on
-        (see native/solve_worker.py and the plan doc). A late result from a
-        cancelled worker is simply ignored via the generation check in
-        _on_worker_finished/_on_worker_failed."""
+        """Restart on a cloned board without waiting for the cancelled process."""
+        if self._closing:
+            return
         self._cancel_endgame()
         self.solutions_panel.hide_endgame()
         if self._worker is not None:
@@ -278,7 +264,7 @@ class MainWindow(QMainWindow):
         if generation != self._generation:
             return  # stale: a newer move has already superseded this result
         self.busy_label.hide()
-        self._render(payload)
+        self._render({**payload, "result": self.game_state.result})
         self._schedule_endgame(payload)
 
     def _on_worker_failed(self, message: str, generation: int) -> None:
@@ -295,11 +281,14 @@ class MainWindow(QMainWindow):
             self._endgame_worker = None
         self._endgame_generation += 1
         self.risk_alert.hide()
+        self.analysis_window.risk_alert.hide()
         self.solutions_panel.hide_pre_endgame()
         self.ev_panel.clear()
 
     def _schedule_endgame(self, payload: dict) -> None:
         """After a full render, screen upcoming questions or analyze endgame."""
+        if self._closing:
+            return
         self._cancel_endgame()
         self.solutions_panel.hide_endgame()
         gs = self.game_state
@@ -322,6 +311,7 @@ class MainWindow(QMainWindow):
             worker.progress.connect(self._on_pre_endgame_finished)
             worker.finished_ok.connect(self._on_pre_endgame_finished)
         else:
+            worker.progress.connect(self._on_endgame_progress)
             worker.finished_ok.connect(self._on_endgame_finished)
         worker.failed.connect(self._on_endgame_failed)
         worker.finished.connect(lambda w=worker: self._cleanup_worker(w))
@@ -353,12 +343,19 @@ class MainWindow(QMainWindow):
     def _show_risk_alert(self, values) -> None:
         low = [p for p in values if p < 0.5 - 1e-12]
         self.risk_alert.setVisible(bool(low))
+        self.analysis_window.risk_alert.setVisible(bool(low))
         if low:
             minimum = f"{min(low):.1%}".replace('.', ',')
-            self.risk_alert.setText(
-                f"⚠ Risque détecté : une issue calculée donne moins de 50 % "
-                f"de chances de victoire (minimum : {minimum})."
-            )
+            text = (f"⚠ Risque détecté : une issue calculée donne moins de 50 % "
+                    f"de chances de victoire (minimum : {minimum}).")
+            self.risk_alert.setText(text)
+            self.analysis_window.risk_alert.setText(text)
+
+    def _on_endgame_progress(self, result, generation: int) -> None:
+        if generation == self._endgame_generation:
+            self.ev_panel.set_endgame_result(result)
+            self._show_risk_alert([b['value'] for q in result.get('ranked_questions', [])
+                                   for b in q.get('branches', [])])
 
     def _on_endgame_finished(self, result, generation: int) -> None:
         if generation != self._endgame_generation:
@@ -383,6 +380,16 @@ class MainWindow(QMainWindow):
             self.solutions_panel.pre_endgame_status.setText(f"Analyse incomplète : erreur ({message})")
 
     def closeEvent(self, event) -> None:
+        if self._closing:
+            event.accept()
+            return
+        self._closing = True
+        # Results already queued before cancellation must not restart work
+        # after these windows have closed.
+        self._generation += 1
+        self._endgame_generation += 1
+        QApplication.instance().removeEventFilter(self)
+        self.analysis_window.close()
         workers = list(self._retired_workers)
         if self._worker is not None:
             workers.append(self._worker)
@@ -391,7 +398,11 @@ class MainWindow(QMainWindow):
         for worker in workers:
             try:
                 worker.cancel()
-                worker.wait(2000)
+            except RuntimeError:
+                pass
+        for worker in workers:
+            try:
+                worker.wait()
             except RuntimeError:
                 pass  # already finished and cleaned up via deleteLater
         super().closeEvent(event)

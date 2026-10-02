@@ -157,6 +157,8 @@ class ChiffresPanel(QWidget):
 
         if self._pre_advice is not None:
             self.set_pre_endgame_advice(*self._pre_advice)
+        elif payload.get('analysis_pending'):
+            self.best_question_label.setText("Recherche de la meilleure question…")
 
         self._render_letters(
             self.row_letters_row, ROW_LETTERS, payload["row_totals"], self._selected_row_letter,

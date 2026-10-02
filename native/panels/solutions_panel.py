@@ -399,8 +399,8 @@ class SolutionsPanel(QWidget):
         self.archive_label.setVisible(archive is not None)
         self.archive_label.setText(f"Dernière partie sauvegardée : {archive}" if archive else "")
 
-        endgame = (0 < payload["n_solutions_total"] <= ENDGAME_N_MAX
-                   and self.game_state.is_endgame())
+        n_total = payload["n_solutions_total"]
+        endgame = n_total is not None and 0 < n_total <= ENDGAME_N_MAX and self.game_state.is_endgame()
         self._endgame_display = endgame
         self.analysis_group.setVisible(not endgame or self.endgame_details_toggle.isChecked())
         phase = self.game_state.endgame_turn_phase() if endgame else self.game_state.turn_phase()
@@ -431,6 +431,7 @@ class SolutionsPanel(QWidget):
 
         n_total = payload["n_solutions_total"]
         self.solutions_list_label.setText(
+            "Calcul des solutions en cours…" if n_total is None else
             "; ".join(self._solutions) if n_total <= 6 else f"{n_total} solutions possibles"
         )
 
@@ -465,3 +466,7 @@ class SolutionsPanel(QWidget):
         self.my_miss_combo.addItems(self._solutions)
 
         self.trace_view.setPlainText("\n".join(payload["trace"]))
+        if payload.get('analysis_pending'):
+            self.p_win_label.setText("Calcul en cours…")
+            self.best_question_label.setText("Recherche de la meilleure question…")
+            self.guess_now_label.setText("Analyse en cours…")

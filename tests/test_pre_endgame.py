@@ -114,3 +114,13 @@ def test_private_exclusion_changes_weights_without_shrinking_public_pool(monkeyp
     assert sum(b['n'] for b in h['branches']) == 60
     assert sum(b['n_mine'] for b in h['branches']) == 59
     assert h['ev'] == pytest.approx((7*.4 + 52*.5)/59)
+
+
+def test_unlimited_analysis_ignores_global_time_cap_and_reports_best(monkeypatch):
+    monkeypatch.setattr(pre, 'MAX_TIME_BUDGET_S', 0)
+    monkeypatch.setattr(pre.TempoEndgameSolver, 'analyze_post_question',
+                        lambda self, S, *a, **k: {'p_win': .4 if S.bit_count() == 4 else .5})
+    result = pre.evaluate_pre_endgame(n60_clue(), 2, 2, time_budget_s=None)
+    h = by_label(result, 'Combien en colonne H ?')
+    assert result['discovery_complete'] and result['finished']
+    assert h['best'] == .5 and h['worst'] == .4

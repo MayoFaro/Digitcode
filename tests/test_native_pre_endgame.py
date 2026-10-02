@@ -103,10 +103,11 @@ def test_risk_alert_is_shared_by_tabs_and_uses_50_not_blacklist_threshold(qapp):
                       finished=False, discovery_complete=True, elapsed_s=.1)
         window._on_pre_endgame_finished(result, window._endgame_generation)
         assert window.solutions_panel.blacklist.count() == 0
-        for tab in range(4):
+        for tab in range(2):
             window._on_tab_clicked(tab)
             assert window.risk_alert.isVisible()
             assert '45,0%' in window.risk_alert.text()
+            assert window.analysis_window.risk_alert.isVisible()
         window._show_risk_alert([.5, .8])
         assert window.risk_alert.isHidden()
         window._show_risk_alert([.49])

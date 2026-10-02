@@ -6,6 +6,13 @@ from PySide6.QtWidgets import QApplication
 from digitcode.native.main_window import MainWindow, TAB_TITLES
 
 
+def _window(gs=None):
+    window = MainWindow(gs)
+    window._worker.wait()
+    QApplication.processEvents()
+    return window
+
+
 def _ctrl_wheel_event(delta_y: int) -> QWheelEvent:
     return QWheelEvent(
         QPointF(0, 0),
@@ -20,31 +27,36 @@ def _ctrl_wheel_event(delta_y: int) -> QWheelEvent:
 
 
 def test_window_is_always_on_top(qapp):
-    window = MainWindow()
+    window = _window()
     assert window.windowFlags() & Qt.WindowStaysOnTopHint
 
 
-def test_window_has_four_tabs(qapp):
-    window = MainWindow()
-    assert len(window.tab_buttons) == 4
-    assert [b.text() for b in window.tab_buttons] == TAB_TITLES
+def test_windows_have_two_tabs_each(qapp):
+    window = _window()
+    assert [b.text() for b in window.tab_buttons] == TAB_TITLES[:2]
+    assert [b.text() for b in window.analysis_window.tab_buttons] == TAB_TITLES[2:]
+    assert window.analysis_window.windowFlags() & Qt.WindowStaysOnTopHint
+    assert window.analysis_window.parent() is None
 
 
 def test_clicking_a_tab_switches_the_stack_page(qapp):
-    window = MainWindow()
+    window = _window()
     assert window.stack.currentIndex() == 0
-    window.tab_buttons[2].click()
-    assert window.stack.currentIndex() == 2
+    window.tab_buttons[1].click()
+    assert window.stack.currentIndex() == 1
+    window.analysis_window.tab_buttons[1].click()
+    assert window.analysis_window.stack.currentIndex() == 1
+    assert window.stack.currentIndex() == 1
 
 
 def test_solutions_label_reflects_the_fresh_board_count(qapp):
-    window = MainWindow()
+    window = _window()
     expected = window.game_state.payload()["n_solutions_total"]
     assert str(expected) in window.solutions_label.text()
 
 
 def test_run_on_contradiction_shows_error_and_keeps_previous_render(qapp):
-    window = MainWindow()
+    window = _window()
     # isVisible() reflects the whole ancestor chain, not just this widget's
     # own show()/hide() calls -- the window itself must be shown for the
     # assertion below to mean anything (offscreen platform, so no real
@@ -69,7 +81,7 @@ def test_run_on_unexpected_exception_reenables_window_shows_error_and_reraises(q
     re-enable the window (via its try/finally) and show an error banner
     on ANY exception, not just ValueError, while still re-raising so a
     real programming error is never silently swallowed."""
-    window = MainWindow()
+    window = _window()
     window.show()
     assert window.centralWidget().isEnabled()
 
@@ -84,45 +96,16 @@ def test_run_on_unexpected_exception_reenables_window_shows_error_and_reraises(q
     assert "boom" in window.error_label.text()
 
 
-def test_run_drains_event_queue_before_reenabling_the_window(qapp, monkeypatch):
-    """Regression test for the replayed-click bug: a click made while the
-    window is disabled queues in Qt's event queue, and used to be
-    delivered (and processed) right after setEnabled(True) re-enabled the
-    widget on the success path, because processEvents() ran only at the
-    very start of _run. The fix drains the queue (via processEvents())
-    while the window is STILL disabled, immediately before the final
-    setEnabled(True) -- matching the web app's runMutation, which
-    deliberately drops input that arrives mid-request. This spies on the
-    two calls to assert that ordering directly, since a full empirical
-    repro (posting a real queued click and checking it never fires) is
-    hard to make reliable headless."""
-    window = MainWindow()
-    window.show()
-
-    call_order = []
-    central = window.centralWidget()
-    real_set_enabled = central.setEnabled
-
-    def spy_set_enabled(value):
-        call_order.append(("setEnabled", value))
-        return real_set_enabled(value)
-
-    from PySide6.QtWidgets import QApplication
-    real_process_events = QApplication.processEvents
-
-    def spy_process_events(*args, **kwargs):
-        call_order.append(("processEvents",))
-        return real_process_events(*args, **kwargs)
-
-    monkeypatch.setattr(central, "setEnabled", spy_set_enabled)
-    monkeypatch.setattr(QApplication, "processEvents", staticmethod(spy_process_events))
-
-    window._run(window.game_state.payload)
-
-    # Find the final setEnabled(True) call and confirm a processEvents()
-    # call immediately precedes it, while the window was still disabled.
-    assert call_order[-1] == ("setEnabled", True)
-    assert call_order[-2] == ("processEvents",)
+def test_actions_do_not_disable_input_or_compute_payload_in_gui(qapp, monkeypatch):
+    window = _window()
+    calls = []
+    monkeypatch.setattr(window.centralWidget(), 'setEnabled', calls.append)
+    monkeypatch.setattr(window.game_state, 'build_payload_from',
+                        lambda *a, **k: pytest.fail('Expensive payload in GUI thread'))
+    window._run(window.game_state.undo)
+    assert calls == []
+    assert window.centralWidget().isEnabled()
+    assert window._last_payload['analysis_pending']
 
 
 def test_mutate_keeps_the_window_enabled_and_renders_after_the_worker_finishes(qapp):
@@ -130,7 +113,7 @@ def test_mutate_keeps_the_window_enabled_and_renders_after_the_worker_finishes(q
     mutation is instant and the window must never be disabled for it, even
     though the display payload is still being computed on a background
     worker."""
-    window = MainWindow()
+    window = _window()
     window.show()
     assert window.centralWidget().isEnabled()
 
@@ -157,7 +140,7 @@ def test_mutate_renders_the_new_clue_immediately_before_the_worker_finishes(qapp
     the (much slower) full payload eventually arrived. _render_quick must
     make the panels reflect the new clue state synchronously, before the
     worker has had a chance to finish."""
-    window = MainWindow()
+    window = _window()
     window.show()
     chiffres = window.panels[0]
 
@@ -172,7 +155,7 @@ def test_mutate_renders_the_new_clue_immediately_before_the_worker_finishes(qapp
 
 
 def test_mutate_on_contradiction_shows_error_and_does_not_schedule_a_worker(qapp):
-    window = MainWindow()
+    window = _window()
     window.show()
     window.game_state.apply_clue("parity", pos="T", value="Pair")
     window.game_state.apply_clue("segment", pos="T", seg="b", value=False)
@@ -188,7 +171,7 @@ def test_mutate_on_contradiction_shows_error_and_does_not_schedule_a_worker(qapp
 
 
 def test_schedule_refresh_cancels_the_previous_worker(qapp):
-    window = MainWindow()
+    window = _window()
     window._schedule_refresh()
     first_worker = window._worker
 
@@ -217,7 +200,7 @@ def test_rapid_successive_mutations_do_not_crash_and_settle_on_the_last_state(qa
     pre-existing solver characteristic, not what's being tested here).
     This test is purely about surviving rapid worker supersession, so it
     deliberately avoids that unrelated edge case."""
-    window = MainWindow()
+    window = _window()
     window.show()
 
     for value in ["Pair", "Impair", "Pair"]:
@@ -238,7 +221,7 @@ def test_rapid_successive_mutations_do_not_crash_and_settle_on_the_last_state(qa
 
 
 def test_on_worker_finished_ignores_a_stale_generation(qapp):
-    window = MainWindow()
+    window = _window()
     before = window.solutions_label.text()
     window._generation = 5
     window._on_worker_finished({"n_solutions_total": 999999}, generation=3)
@@ -246,7 +229,7 @@ def test_on_worker_finished_ignores_a_stale_generation(qapp):
 
 
 def test_on_worker_failed_ignores_a_stale_generation(qapp):
-    window = MainWindow()
+    window = _window()
     window._generation = 5
     window._on_worker_failed("boom", generation=3)
     assert not window.error_label.isVisible()
@@ -255,21 +238,21 @@ def test_on_worker_failed_ignores_a_stale_generation(qapp):
 def test_ctrl_wheel_up_increases_opacity(qapp):
     # abs tolerance covers the offscreen QPA's 8-bit opacity quantization,
     # which truncates windowOpacity() to steps of 1/255 (~0.004).
-    window = MainWindow()
+    window = _window()
     window.setWindowOpacity(0.8)
     window.eventFilter(window, _ctrl_wheel_event(120))
     assert window.windowOpacity() == pytest.approx(0.85, abs=0.005)
 
 
 def test_ctrl_wheel_down_decreases_opacity(qapp):
-    window = MainWindow()
+    window = _window()
     window.setWindowOpacity(0.8)
     window.eventFilter(window, _ctrl_wheel_event(-120))
     assert window.windowOpacity() == pytest.approx(0.75, abs=0.005)
 
 
 def test_ctrl_wheel_opacity_is_clamped_between_20_and_100_percent(qapp):
-    window = MainWindow()
+    window = _window()
     window.setWindowOpacity(0.22)
     window.eventFilter(window, _ctrl_wheel_event(-120))
     assert window.windowOpacity() == pytest.approx(0.2)
@@ -280,7 +263,7 @@ def test_ctrl_wheel_opacity_is_clamped_between_20_and_100_percent(qapp):
 
 
 def test_wheel_without_ctrl_does_not_change_opacity(qapp):
-    window = MainWindow()
+    window = _window()
     window.setWindowOpacity(0.8)
     event = QWheelEvent(
         QPointF(0, 0),
@@ -302,16 +285,16 @@ from tests.test_game_state import _n4_state
 
 
 def test_endgame_block_is_hidden_on_a_fresh_board(qapp):
-    window = MainWindow()
+    window = _window()
     window.show()
     assert window._endgame_worker is None
     assert not window.solutions_panel.endgame_label.isVisible()
 
 
 def test_small_board_schedules_the_endgame_and_renders_its_result(qapp):
-    window = MainWindow(_n4_state())
+    window = _window(_n4_state())
     window.show()
-    window.stack.setCurrentIndex(2)
+    window.analysis_window.stack.setCurrentIndex(0)
     assert window._endgame_worker is not None
     assert window.solutions_panel.endgame_label.text() == ENDGAME_PENDING_TEXT
 
@@ -324,7 +307,7 @@ def test_small_board_schedules_the_endgame_and_renders_its_result(qapp):
 
 
 def test_schedule_refresh_cancels_the_endgame_and_hides_the_block(qapp):
-    window = MainWindow(_n4_state())
+    window = _window(_n4_state())
     window.show()
     endgame_worker = window._endgame_worker
     window._schedule_refresh()
@@ -339,24 +322,24 @@ def test_schedule_refresh_cancels_the_endgame_and_hides_the_block(qapp):
 
 
 def test_on_endgame_finished_ignores_a_stale_generation(qapp):
-    window = MainWindow()
+    window = _window()
     window._endgame_generation = 5
     window._on_endgame_finished({"complete": False, "n_public": 3}, generation=4)
     assert not window.solutions_panel.endgame_label.isVisible()
 
 
 def test_on_endgame_failed_shows_the_error(qapp):
-    window = MainWindow()
+    window = _window()
     window.show()
-    window.stack.setCurrentIndex(2)
+    window.analysis_window.stack.setCurrentIndex(0)
     window._on_endgame_failed("boom", generation=window._endgame_generation)
     assert "boom" in window.solutions_panel.endgame_label.text()
 
 
 def test_endgame_worker_reference_is_cleared_once_it_finishes(qapp):
-    window = MainWindow(_n4_state())
+    window = _window(_n4_state())
     window.show()
-    window.stack.setCurrentIndex(2)
+    window.analysis_window.stack.setCurrentIndex(0)
     worker = window._endgame_worker
     assert worker is not None
 
@@ -374,3 +357,36 @@ def test_endgame_worker_reference_is_cleared_once_it_finishes(qapp):
     assert len(window._retired_workers) == retired_before
     window._endgame_worker.wait()
     QApplication.processEvents()
+
+
+def test_startup_never_builds_expensive_payload_in_gui(qapp, monkeypatch):
+    from digitcode.game_state import GameState
+    monkeypatch.setattr(GameState, 'build_payload_from',
+                        lambda *a, **k: pytest.fail('Expensive synchronous startup'))
+    window = MainWindow()
+    assert window._last_payload['n_solutions_total'] is None
+    assert window.panels[0]._last_payload['reachable_row_sums']['J']
+    assert window.centralWidget().isEnabled()
+    window.close()
+
+
+def test_closing_analysis_closes_both_windows_and_ignores_queued_results(qapp):
+    window = MainWindow()
+    window.show()
+    worker = window._worker
+    generation = window._generation
+    window.analysis_window.close()
+    assert not window.isVisible()
+    assert not window.analysis_window.isVisible()
+    assert not worker.isRunning()
+    window._on_worker_finished({'n_solutions_total': 4}, generation)
+    assert window._endgame_worker is None
+
+
+def test_ctrl_wheel_on_analysis_changes_only_its_opacity(qapp):
+    window = MainWindow()
+    window.setWindowOpacity(.8)
+    window.analysis_window.setWindowOpacity(.8)
+    window.eventFilter(window.ev_panel, _ctrl_wheel_event(120))
+    assert window.analysis_window.windowOpacity() == pytest.approx(.85, abs=.005)
+    assert window.windowOpacity() == pytest.approx(.8, abs=.005)

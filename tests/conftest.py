@@ -24,6 +24,20 @@ def qapp():
     yield app
 
 
+@pytest.fixture(autouse=True)
+def close_native_windows(request):
+    """Stop native processes after each Qt test, including assertion failures."""
+    yield
+    if 'qapp' in request.fixturenames:
+        from PySide6.QtWidgets import QApplication
+        from digitcode.native.main_window import MainWindow
+        app = QApplication.instance()
+        for window in app.topLevelWidgets():
+            if isinstance(window, MainWindow):
+                window.close()
+        app.processEvents()
+
+
 def make_solver(free_positions: dict, tries: int = 500) -> DigitcodeSolver:
     """Builds a DigitcodeSolver whose domains are exactly `free_positions`
     for the given keys (each mapped to a set of >=1 candidate values) and a

@@ -1,31 +1,16 @@
-"""Cancellable progressive screening, using the same snapshot lifecycle as endgame."""
-import sys
-import traceback
-
-from PySide6.QtCore import Signal
-
-from .endgame_worker import EndgameWorker
+"""Unlimited progressive screening in an isolated process."""
+from ..endgame import PHASE_MY_TURN
 from ..pre_endgame import evaluate_pre_endgame
-from ..solver import Cancelled
+from .process_worker import ProcessWorker
 
 
-class PreEndgameWorker(EndgameWorker):
-    progress = Signal(object, int)
+def _compute_pre_endgame(args, should_cancel, publish):
+    return evaluate_pre_endgame(*args, time_budget_s=None,
+                                should_cancel=should_cancel, on_progress=publish)
 
-    def run(self):
-        if self._cancel_event.is_set():
-            return
-        try:
-            result = evaluate_pre_endgame(
-                self._clue, self._a_me, self._a_opp, self._excluded, self._opp_fail_pool_size,
-                should_cancel=self._cancel_event.is_set,
-                on_progress=lambda result: self.progress.emit(result, self.generation),
-            )
-        except Cancelled:
-            return
-        except Exception as exc:
-            traceback.print_exc(file=sys.stderr)
-            self.failed.emit(str(exc), self.generation)
-            return
-        if not self._cancel_event.is_set():
-            self.finished_ok.emit(result, self.generation)
+
+class PreEndgameWorker(ProcessWorker):
+    def __init__(self, clue, a_me, a_opp, excluded, opp_fail_pool_size, generation,
+                 phase=PHASE_MY_TURN, parent=None):
+        super().__init__(_compute_pre_endgame,
+                         (clue, a_me, a_opp, excluded, opp_fail_pool_size), generation, parent)
