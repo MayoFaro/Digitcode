@@ -63,6 +63,32 @@ def _risk_label():
     return label
 
 
+class _RiskOverlay(QLabel):
+    """Translucent red band pinned to the bottom of its parent, outside the
+    layout flow. Unlike the inline alert, showing/hiding it never reflows
+    the widgets above it -- the input window used an inline label that
+    pushed the tab row and the chip grids down while the user was clicking
+    on them. Carries no text on purpose and ignores mouse events, so it
+    can never intercept a click even while visible."""
+
+    HEIGHT = 22
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setStyleSheet("background-color: rgba(183, 28, 28, 0.55);")
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.hide()
+
+    def setText(self, text):
+        pass
+
+    def reposition(self) -> None:
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.setGeometry(0, parent.height() - self.HEIGHT, parent.width(), self.HEIGHT)
+
+
 class AnalysisWindow(QMainWindow):
     def __init__(self, controller):
         # No Qt parent: both windows have the same stacking priority.
@@ -132,8 +158,9 @@ class MainWindow(QMainWindow):
         self.tab_group.idClicked.connect(self._on_tab_clicked)
         self.solutions_label = QLabel()
         layout.insertWidget(1, self.solutions_label)
-        self.risk_alert = _risk_label()
-        layout.insertWidget(2, self.risk_alert)
+        self.risk_alert = _RiskOverlay(central)
+        self.risk_alert.raise_()
+        self.risk_alert.reposition()
 
         self.analysis_window = AnalysisWindow(self)
         self.busy_label = self.analysis_window.busy_label
@@ -165,6 +192,11 @@ class MainWindow(QMainWindow):
             self.analysis_window.move(self.x() + self.width() + 12, self.y())
             self._positioned_analysis = True
         self.analysis_window.show()
+        self.risk_alert.reposition()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.risk_alert.reposition()
 
     def eventFilter(self, obj: QWidget, event: QEvent) -> bool:
         if event.type() == QEvent.Wheel and event.modifiers() & Qt.ControlModifier:
