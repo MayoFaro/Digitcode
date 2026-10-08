@@ -20,14 +20,6 @@ class EVPanel(QWidget):
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        explanation = QLabel(
-            "Moyenne : chances de victoire pondérées par les réponses possibles. "
-            "Pire : chances après la réponse la plus défavorable. "
-            "Meilleure : chances après la réponse la plus favorable. "
-            "Probabilités du modèle, avec choix de proposer ou de terminer le tour après la réponse."
-        )
-        explanation.setWordWrap(True)
-        layout.addWidget(explanation)
         self.favorable = QLabel()
         self.favorable.setWordWrap(True)
         layout.addWidget(self.favorable)
@@ -66,13 +58,24 @@ class EVPanel(QWidget):
                            or any(b.get('p_win') is not None for b in q.get('branches', []))]
         complete = sum(q.get('ev') is not None for q in result['questions'])
         incomplete = sum(q.get('ev') is None for q in result['questions'])
-        state = "Calcul terminé" if result['finished'] else "Calcul en cours"
+        if result['finished']:
+            state = (
+                f"Calcul terminé — {complete} questions entièrement évaluées, "
+                f"{incomplete} sans moyenne définitive (réponse à plus de 20 candidats, non calculable)."
+                if incomplete else
+                f"Calcul terminé — {complete} questions entièrement évaluées."
+            )
+            footnote = " * : extrême partiel, une réponse n'a pas pu être évaluée." if incomplete else ""
+        else:
+            state = (
+                f"Calcul en cours — {complete} questions entièrement évaluées, "
+                f"{incomplete} encore incomplètes."
+            )
+            footnote = " * : extrême provisoire, certaines réponses restent à calculer." if incomplete else ""
         self.status.setText(
-            f"{state} — {complete} questions entièrement évaluées, "
-            f"{incomplete} incomplètes parmi les questions repérées. "
-            "Classement partiel de mes prochaines questions, même si ce n’est pas mon tour. "
-            "Les branches à plus de 20 candidats restent inconnues."
-            " * : extrême provisoire, certaines réponses restent à calculer."
+            state
+            + " Classement partiel de mes prochaines questions, même si ce n’est pas mon tour."
+            + footnote
             + (" Repérage incomplet." if not result['discovery_complete'] else "")
         )
         self._render()

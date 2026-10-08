@@ -20,7 +20,7 @@ def test_ranking_threshold_details_and_reset(qapp):
     assert panel.table.rowCount() == 3
     assert panel.table.item(0, 0).text() == 'Risquée (exclue)'
     assert 'Robuste' in panel.favorable.text() and 'Seuil' not in panel.favorable.text()
-    assert '1 incomplètes' in panel.status.text() and 'Repérage incomplet' in panel.status.text()
+    assert '1 sans moyenne définitive' in panel.status.text() and 'Repérage incomplet' in panel.status.text()
     panel.table.selectRow(0)
     assert '30.0%' in panel.details.text() and '25.0%' in panel.details.text()
     panel.sort_order.setCurrentIndex(1)
