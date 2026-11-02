@@ -94,3 +94,63 @@ calcul plus réaliste après — les deux sont documentés, aucun n'est caché.
   avec `DG3Policy` à la place de `DG2Policy`, même protocole de secrets et de
   seeds que les benchmarks DG1-DG2 existants, pour une comparaison
   directement reproductible.
+- Résultat mesuré sur 300 parties (`benchmarks/dg1-dg3-300.json`) : 172/300
+  (57,3 %), p ≈ 0,013 (test binomial exact contre l'hypothèse 50/50).
+
+## Pistes explorées après le premier résultat (2026-11-02)
+
+Deux leviers identifiés pour la zone « plateau large » (> 20 candidats,
+celle où la plupart des tours se jouent) : repousser le seuil de calcul
+exact, et rendre la détection de piège de l'heuristique large plus
+rigoureuse. Un troisième levier (nombre d'essais restants, non pris en
+compte par l'heuristique large) a été écarté sur confirmation utilisateur :
+jamais observé comme pertinent en plus de 1000 parties humaines.
+
+### Repousser `ENDGAME_N_MAX` au-delà de 20 — abandonné
+
+Mesuré directement (`TempoEndgameSolver.analyze`, plateaux aléatoires à
+cible 22/24/26/28/30) : le tout premier plateau testé à N=22 dépasse un
+budget de 120 s sans conclure (`EndgameBudgetExceeded`). L'estimation
+optimiste historique du docstring d'`endgame_tempo.py` ("N=24 en 1-3s,
+N=28 en ~31s") ne tient pas sur le pire cas réel une fois la variance
+prise en compte, en particulier sur un plateau où presque aucune question
+n'a encore été posée (grande réserve de questions nulles). Conclusion :
+20 est proche du plafond pratique de cet algorithme sans un investissement
+d'ingénierie bien plus lourd (parallélisation, meilleur élagage, portage
+dans un langage plus bas niveau) -- hors de portée d'une amélioration
+ciblée. Ce levier n'a pas été retenu.
+
+### Détection de piège rigoureuse pour l'heuristique large — essayé, abandonné
+
+`strategy._apply_lookahead_penalty` (le seul garde-fou existant pour les
+plateaux larges) ne regarde qu'un indicateur binaire -- "l'adversaire a-t-il
+au moins une question sans risque" -- sur les 4 meilleures questions par
+score d'entropie seul, sans jamais regarder qui profite réellement d'une
+branche. Une version (`dg3._wide_board_action`, retirée depuis) remplaçait
+cet indicateur par une vraie probabilité de victoire par branche : quand
+une branche d'une question large retombe sous `endgame_n_max`, évaluation
+exacte avec le même moteur tempo que DG3 utilise déjà après sa question
+(`PHASE_MY_POST_QUESTION`) ; sinon, rappel à 1 niveau du modèle de DG1
+lui-même (`evaluate_race_strategy`) sur cette branche -- les deux sur une
+échelle `p_win` directement comparable.
+
+**Résultat mesuré, négatif** : un tournoi de 300 parties avec cette version
+donne 56,0 % (168/300, p≈0,043) -- statistiquement indiscernable du 57,3 %
+obtenu sans elle. La cause, diagnostiquée directement (pas juste supposée) :
+une seule branche peut légitimement coûter plusieurs secondes à résoudre
+exactement (mesuré jusqu'à 8s à N=19 dans le tableau ci-dessus), donc
+n'importe quel budget de temps total raisonnable pour un tournoi (5 à 8s)
+suffit rarement à évaluer plus d'un seul candidat sur les 4 du faisceau --
+mesuré directement : aussi peu que 1 candidat sur 4 obtient une vraie
+évaluation avant épuisement du budget, que ce budget soit partagé entre
+candidats ou réparti équitablement entre eux. Sans un deuxième candidat
+évalué, il n'y a rien à comparer : le mécanisme ne fait, la plupart du
+temps, que retomber plus lentement sur le choix de DG1 lui-même.
+
+Ce n'est pas que l'idée soit fausse -- c'est que le coût réel d'une
+évaluation exacte par branche est incompatible avec un budget de décision
+raisonnable à l'échelle d'un tournoi (le même obstacle, en plus petit, que
+celui qui a fait abandonner l'extension de `ENDGAME_N_MAX` ci-dessus).
+Retenter ce levier n'a de sens qu'avec soit un budget de temps par décision
+bien plus généreux (au prix d'un tournoi bien plus lent), soit un moteur
+nettement plus rapide pour la recherche par branche.

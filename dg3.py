@@ -31,6 +31,21 @@ from .solver import Clue, DigitcodeSolver
 # model below, never to a crash or an unbounded wait.
 ENDGAME_TIME_BUDGET_S = 10.0
 
+# A branch-exact lookahead for the N>20 "wide board" phase was tried and
+# measured here on 2026-11-02 (see git history and
+# docs/superpowers/specs/2026-11-02-dg3-engine-design.md): re-ranking
+# DG1's top candidate questions by a real per-branch win probability
+# (exact via the tempo engine when a branch was small enough, else a
+# recursive DG1 estimate) instead of DG1's own crude boolean danger flag.
+# Reverted -- not because the idea is wrong, but because a single branch
+# can legitimately cost several seconds to resolve exactly, and no
+# wall-clock budget tried (shared or split per candidate) was both cheap
+# enough for a tournament and generous enough to score more than one
+# candidate most of the time; without that, there is nothing to compare,
+# just slower ways to reach DG1's own answer. A 300-game tournament with
+# it measured 56.0% (168/300) against DG1, statistically indistinguishable
+# from the 57.3% (172/300) this file gets without it.
+
 
 def _null_question_action(qtype: str, label: str, entry: dict) -> Ask:
     """The one concrete action for a tempo "null" question: ask any still-
