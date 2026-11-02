@@ -1,0 +1,3462 @@
+{
+  "config": {
+    "dg1_time_budget_s": 0.25,
+    "games": 300,
+    "seed": 20261102
+  },
+  "pairs": [
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783306,
+          "duration_s": 21.605,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783307,
+          "duration_s": 21.69,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 0,
+      "secret": "036897"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783308,
+          "duration_s": 8.404,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783309,
+          "duration_s": 8.253,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 1,
+      "secret": "392869"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783310,
+          "duration_s": 8.459,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783311,
+          "duration_s": 8.501,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        }
+      ],
+      "index": 2,
+      "secret": "517072"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783312,
+          "duration_s": 11.027,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783313,
+          "duration_s": 10.505,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 3,
+      "secret": "605524"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783314,
+          "duration_s": 7.208,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783315,
+          "duration_s": 7.216,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 4,
+      "secret": "868479"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783316,
+          "duration_s": 10.161,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783317,
+          "duration_s": 11.965,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 5,
+      "secret": "708046"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783318,
+          "duration_s": 9.453,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783319,
+          "duration_s": 9.784,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 6,
+      "secret": "459616"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783320,
+          "duration_s": 19.691,
+          "guesses": 3,
+          "questions": 15,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783321,
+          "duration_s": 18.952,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        }
+      ],
+      "index": 7,
+      "secret": "546835"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783322,
+          "duration_s": 18.094,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783323,
+          "duration_s": 19.087,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 8,
+      "secret": "716843"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783324,
+          "duration_s": 26.017,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783325,
+          "duration_s": 26.068,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 9,
+      "secret": "396845"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783326,
+          "duration_s": 13.899,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783327,
+          "duration_s": 14.778,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        }
+      ],
+      "index": 10,
+      "secret": "957601"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783328,
+          "duration_s": 13.241,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783329,
+          "duration_s": 13.363,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 11,
+      "secret": "614368"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783330,
+          "duration_s": 20.34,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783331,
+          "duration_s": 19.64,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 12,
+      "secret": "069520"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783332,
+          "duration_s": 19.844,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783333,
+          "duration_s": 20.35,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        }
+      ],
+      "index": 13,
+      "secret": "859530"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783334,
+          "duration_s": 5.384,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783335,
+          "duration_s": 5.175,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 14,
+      "secret": "395130"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783336,
+          "duration_s": 5.638,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783337,
+          "duration_s": 5.19,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 15,
+      "secret": "737951"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783338,
+          "duration_s": 11.174,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783339,
+          "duration_s": 11.234,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 16,
+      "secret": "028231"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783340,
+          "duration_s": 16.499,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783341,
+          "duration_s": 16.699,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 17,
+      "secret": "061613"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783342,
+          "duration_s": 3.872,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783343,
+          "duration_s": 3.864,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 18,
+      "secret": "623701"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783344,
+          "duration_s": 8.035,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783345,
+          "duration_s": 8.627,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 19,
+      "secret": "968623"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783346,
+          "duration_s": 14.609,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783347,
+          "duration_s": 14.277,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 20,
+      "secret": "865784"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783348,
+          "duration_s": 18.262,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783349,
+          "duration_s": 17.892,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 21,
+      "secret": "150043"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783350,
+          "duration_s": 6.545,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783351,
+          "duration_s": 6.965,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 22,
+      "secret": "657872"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783352,
+          "duration_s": 22.723,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783353,
+          "duration_s": 22.42,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 23,
+      "secret": "625361"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783354,
+          "duration_s": 27.452,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783355,
+          "duration_s": 27.516,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 24,
+      "secret": "064872"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783356,
+          "duration_s": 8.176,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783357,
+          "duration_s": 7.838,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 25,
+      "secret": "252383"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783358,
+          "duration_s": 20.02,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783359,
+          "duration_s": 21.671,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 26,
+      "secret": "901056"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783360,
+          "duration_s": 11.594,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783361,
+          "duration_s": 12.509,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 27,
+      "secret": "091967"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783362,
+          "duration_s": 4.555,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783363,
+          "duration_s": 4.358,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 28,
+      "secret": "734180"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783364,
+          "duration_s": 6.503,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783365,
+          "duration_s": 6.997,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 29,
+      "secret": "107468"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783366,
+          "duration_s": 8.813,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783367,
+          "duration_s": 8.807,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 30,
+      "secret": "802936"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783368,
+          "duration_s": 16.553,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783369,
+          "duration_s": 17.421,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 31,
+      "secret": "082845"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783370,
+          "duration_s": 6.221,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783371,
+          "duration_s": 6.132,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        }
+      ],
+      "index": 32,
+      "secret": "195707"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783372,
+          "duration_s": 26.85,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783373,
+          "duration_s": 26.715,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 33,
+      "secret": "472827"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783374,
+          "duration_s": 24.257,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783375,
+          "duration_s": 25.543,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        }
+      ],
+      "index": 34,
+      "secret": "708692"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783376,
+          "duration_s": 18.086,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783377,
+          "duration_s": 17.816,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 35,
+      "secret": "160239"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783378,
+          "duration_s": 6.935,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783379,
+          "duration_s": 6.973,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 36,
+      "secret": "573791"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783380,
+          "duration_s": 17.264,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783381,
+          "duration_s": 17.137,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 37,
+      "secret": "734141"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783382,
+          "duration_s": 10.533,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783383,
+          "duration_s": 12.109,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 38,
+      "secret": "908641"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783384,
+          "duration_s": 15.475,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783385,
+          "duration_s": 15.513,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 39,
+      "secret": "895546"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783386,
+          "duration_s": 13.115,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783387,
+          "duration_s": 13.062,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 40,
+      "secret": "404273"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783388,
+          "duration_s": 15.716,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783389,
+          "duration_s": 15.161,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        }
+      ],
+      "index": 41,
+      "secret": "957170"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783390,
+          "duration_s": 8.379,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783391,
+          "duration_s": 8.225,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 42,
+      "secret": "904787"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783392,
+          "duration_s": 15.685,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783393,
+          "duration_s": 15.557,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 43,
+      "secret": "321703"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783394,
+          "duration_s": 10.055,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783395,
+          "duration_s": 10.037,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 44,
+      "secret": "519278"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783396,
+          "duration_s": 11.087,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783397,
+          "duration_s": 12.043,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 45,
+      "secret": "549123"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783398,
+          "duration_s": 37.809,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783399,
+          "duration_s": 37.375,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        }
+      ],
+      "index": 46,
+      "secret": "754645"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783400,
+          "duration_s": 2.827,
+          "guesses": 1,
+          "questions": 7,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783401,
+          "duration_s": 2.796,
+          "guesses": 1,
+          "questions": 7,
+          "winner": "DG3"
+        }
+      ],
+      "index": 47,
+      "secret": "716068"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783402,
+          "duration_s": 20.523,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783403,
+          "duration_s": 20.624,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 48,
+      "secret": "872604"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783404,
+          "duration_s": 6.97,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783405,
+          "duration_s": 6.88,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 49,
+      "secret": "987523"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783406,
+          "duration_s": 22.033,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783407,
+          "duration_s": 21.91,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 50,
+      "secret": "196073"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783408,
+          "duration_s": 5.234,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783409,
+          "duration_s": 7.014,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 51,
+      "secret": "268846"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783410,
+          "duration_s": 6.411,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783411,
+          "duration_s": 6.738,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 52,
+      "secret": "812637"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783412,
+          "duration_s": 20.735,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783413,
+          "duration_s": 19.62,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 53,
+      "secret": "082937"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783414,
+          "duration_s": 24.588,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783415,
+          "duration_s": 26.076,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 54,
+      "secret": "648451"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783416,
+          "duration_s": 18.376,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783417,
+          "duration_s": 18.68,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        }
+      ],
+      "index": 55,
+      "secret": "510387"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783418,
+          "duration_s": 10.731,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783419,
+          "duration_s": 10.807,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 56,
+      "secret": "803215"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783420,
+          "duration_s": 7.975,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783421,
+          "duration_s": 8.243,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 57,
+      "secret": "183520"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783422,
+          "duration_s": 10.97,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783423,
+          "duration_s": 10.685,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 58,
+      "secret": "625108"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783424,
+          "duration_s": 8.752,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783425,
+          "duration_s": 9.295,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 59,
+      "secret": "425156"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783426,
+          "duration_s": 8.078,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783427,
+          "duration_s": 8.089,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 60,
+      "secret": "540163"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783428,
+          "duration_s": 8.428,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783429,
+          "duration_s": 8.608,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 61,
+      "secret": "367946"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783430,
+          "duration_s": 23.055,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783431,
+          "duration_s": 20.264,
+          "guesses": 3,
+          "questions": 15,
+          "winner": "DG3"
+        }
+      ],
+      "index": 62,
+      "secret": "328485"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783432,
+          "duration_s": 6.422,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783433,
+          "duration_s": 6.219,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 63,
+      "secret": "367648"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783434,
+          "duration_s": 6.328,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783435,
+          "duration_s": 7.375,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 64,
+      "secret": "104238"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783436,
+          "duration_s": 28.79,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783437,
+          "duration_s": 31.36,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 65,
+      "secret": "630747"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783438,
+          "duration_s": 7.953,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783439,
+          "duration_s": 8.79,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 66,
+      "secret": "501646"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783440,
+          "duration_s": 8.745,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783441,
+          "duration_s": 8.249,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 67,
+      "secret": "731804"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783442,
+          "duration_s": 5.426,
+          "guesses": 2,
+          "questions": 7,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783443,
+          "duration_s": 5.227,
+          "guesses": 2,
+          "questions": 7,
+          "winner": "DG3"
+        }
+      ],
+      "index": 68,
+      "secret": "608413"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783444,
+          "duration_s": 19.06,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783445,
+          "duration_s": 17.812,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 69,
+      "secret": "891605"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783446,
+          "duration_s": 13.158,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783447,
+          "duration_s": 11.706,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 70,
+      "secret": "852430"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783448,
+          "duration_s": 22.3,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783449,
+          "duration_s": 22.518,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 71,
+      "secret": "037759"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783450,
+          "duration_s": 16.063,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783451,
+          "duration_s": 16.257,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        }
+      ],
+      "index": 72,
+      "secret": "236895"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783452,
+          "duration_s": 2.737,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783453,
+          "duration_s": 2.771,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG3"
+        }
+      ],
+      "index": 73,
+      "secret": "814651"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783454,
+          "duration_s": 11.713,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783455,
+          "duration_s": 12.407,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 74,
+      "secret": "138594"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783456,
+          "duration_s": 13.407,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783457,
+          "duration_s": 14.002,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 75,
+      "secret": "764235"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783458,
+          "duration_s": 6.692,
+          "guesses": 1,
+          "questions": 7,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783459,
+          "duration_s": 6.984,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 76,
+      "secret": "120014"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783460,
+          "duration_s": 8.584,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783461,
+          "duration_s": 8.623,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        }
+      ],
+      "index": 77,
+      "secret": "690751"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783462,
+          "duration_s": 9.443,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783463,
+          "duration_s": 9.926,
+          "guesses": 2,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 78,
+      "secret": "908141"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783464,
+          "duration_s": 9.351,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783465,
+          "duration_s": 10.26,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 79,
+      "secret": "761619"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783466,
+          "duration_s": 21.606,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783467,
+          "duration_s": 20.861,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 80,
+      "secret": "376683"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783468,
+          "duration_s": 17.933,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783469,
+          "duration_s": 16.953,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 81,
+      "secret": "810697"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783470,
+          "duration_s": 5.423,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783471,
+          "duration_s": 5.099,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 82,
+      "secret": "701035"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783472,
+          "duration_s": 5.703,
+          "guesses": 3,
+          "questions": 7,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783473,
+          "duration_s": 5.69,
+          "guesses": 3,
+          "questions": 7,
+          "winner": "DG3"
+        }
+      ],
+      "index": 83,
+      "secret": "740406"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783474,
+          "duration_s": 7.855,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783475,
+          "duration_s": 7.49,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 84,
+      "secret": "796471"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783476,
+          "duration_s": 17.135,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783477,
+          "duration_s": 16.267,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 85,
+      "secret": "974259"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783478,
+          "duration_s": 14.49,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783479,
+          "duration_s": 14.428,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 86,
+      "secret": "782697"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783480,
+          "duration_s": 17.539,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783481,
+          "duration_s": 19.727,
+          "guesses": 1,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 87,
+      "secret": "456232"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783482,
+          "duration_s": 16.974,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783483,
+          "duration_s": 18.206,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 88,
+      "secret": "364641"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783484,
+          "duration_s": 21.59,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783485,
+          "duration_s": 21.258,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 89,
+      "secret": "715054"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783486,
+          "duration_s": 16.999,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783487,
+          "duration_s": 17.153,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 90,
+      "secret": "731197"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783488,
+          "duration_s": 16.655,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783489,
+          "duration_s": 17.354,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 91,
+      "secret": "563726"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783490,
+          "duration_s": 15.179,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783491,
+          "duration_s": 13.021,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 92,
+      "secret": "605869"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783492,
+          "duration_s": 4.413,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783493,
+          "duration_s": 4.441,
+          "guesses": 1,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 93,
+      "secret": "262086"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783494,
+          "duration_s": 14.781,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783495,
+          "duration_s": 15.224,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 94,
+      "secret": "763329"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783496,
+          "duration_s": 13.906,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783497,
+          "duration_s": 13.878,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 95,
+      "secret": "352086"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783498,
+          "duration_s": 10.144,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783499,
+          "duration_s": 10.304,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 96,
+      "secret": "672498"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783500,
+          "duration_s": 15.049,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783501,
+          "duration_s": 15.225,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 97,
+      "secret": "072328"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783502,
+          "duration_s": 19.778,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783503,
+          "duration_s": 19.857,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 98,
+      "secret": "085564"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783504,
+          "duration_s": 19.439,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783505,
+          "duration_s": 20.763,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 99,
+      "secret": "743020"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783506,
+          "duration_s": 19.507,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783507,
+          "duration_s": 19.302,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 100,
+      "secret": "832398"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783508,
+          "duration_s": 28.664,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783509,
+          "duration_s": 27.649,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 101,
+      "secret": "716827"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783510,
+          "duration_s": 10.108,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783511,
+          "duration_s": 9.898,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 102,
+      "secret": "595372"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783512,
+          "duration_s": 5.968,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783513,
+          "duration_s": 6.426,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 103,
+      "secret": "892053"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783514,
+          "duration_s": 31.655,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783515,
+          "duration_s": 32.149,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 104,
+      "secret": "203476"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783516,
+          "duration_s": 34.547,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783517,
+          "duration_s": 32.803,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 105,
+      "secret": "971428"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783518,
+          "duration_s": 20.492,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783519,
+          "duration_s": 21.528,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 106,
+      "secret": "347138"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783520,
+          "duration_s": 4.782,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783521,
+          "duration_s": 4.87,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 107,
+      "secret": "080652"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783522,
+          "duration_s": 7.902,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783523,
+          "duration_s": 7.824,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        }
+      ],
+      "index": 108,
+      "secret": "410205"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783524,
+          "duration_s": 5.091,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783525,
+          "duration_s": 5.051,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 109,
+      "secret": "180394"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783526,
+          "duration_s": 4.711,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783527,
+          "duration_s": 4.395,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 110,
+      "secret": "894762"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783528,
+          "duration_s": 4.107,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783529,
+          "duration_s": 4.115,
+          "guesses": 3,
+          "questions": 7,
+          "winner": "DG3"
+        }
+      ],
+      "index": 111,
+      "secret": "645074"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783530,
+          "duration_s": 10.657,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783531,
+          "duration_s": 10.727,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        }
+      ],
+      "index": 112,
+      "secret": "817480"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783532,
+          "duration_s": 7.406,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783533,
+          "duration_s": 6.714,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 113,
+      "secret": "725152"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783534,
+          "duration_s": 6.454,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783535,
+          "duration_s": 6.268,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        }
+      ],
+      "index": 114,
+      "secret": "873609"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783536,
+          "duration_s": 26.847,
+          "guesses": 3,
+          "questions": 15,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783537,
+          "duration_s": 26.133,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG3"
+        }
+      ],
+      "index": 115,
+      "secret": "245897"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783538,
+          "duration_s": 7.054,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783539,
+          "duration_s": 7.79,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 116,
+      "secret": "345576"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783540,
+          "duration_s": 5.964,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783541,
+          "duration_s": 5.86,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 117,
+      "secret": "498304"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783542,
+          "duration_s": 11.465,
+          "guesses": 1,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783543,
+          "duration_s": 11.332,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        }
+      ],
+      "index": 118,
+      "secret": "848351"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783544,
+          "duration_s": 8.784,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783545,
+          "duration_s": 8.738,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        }
+      ],
+      "index": 119,
+      "secret": "607165"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783546,
+          "duration_s": 11.11,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783547,
+          "duration_s": 11.173,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 120,
+      "secret": "624356"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783548,
+          "duration_s": 22.428,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783549,
+          "duration_s": 22.684,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        }
+      ],
+      "index": 121,
+      "secret": "698305"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783550,
+          "duration_s": 9.499,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783551,
+          "duration_s": 9.056,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 122,
+      "secret": "284310"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783552,
+          "duration_s": 29.765,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783553,
+          "duration_s": 31.676,
+          "guesses": 1,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 123,
+      "secret": "379421"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783554,
+          "duration_s": 6.191,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783555,
+          "duration_s": 7.527,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 124,
+      "secret": "393189"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783556,
+          "duration_s": 16.7,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783557,
+          "duration_s": 16.635,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 125,
+      "secret": "576107"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783558,
+          "duration_s": 9.607,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783559,
+          "duration_s": 10.052,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 126,
+      "secret": "582701"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783560,
+          "duration_s": 6.448,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783561,
+          "duration_s": 6.037,
+          "guesses": 2,
+          "questions": 9,
+          "winner": "DG3"
+        }
+      ],
+      "index": 127,
+      "secret": "201536"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783562,
+          "duration_s": 5.258,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783563,
+          "duration_s": 5.119,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        }
+      ],
+      "index": 128,
+      "secret": "140586"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783564,
+          "duration_s": 10.8,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783565,
+          "duration_s": 9.412,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 129,
+      "secret": "485193"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783566,
+          "duration_s": 23.557,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783567,
+          "duration_s": 21.74,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 130,
+      "secret": "274401"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783568,
+          "duration_s": 11.651,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783569,
+          "duration_s": 11.751,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        }
+      ],
+      "index": 131,
+      "secret": "973826"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783570,
+          "duration_s": 5.482,
+          "guesses": 1,
+          "questions": 6,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783571,
+          "duration_s": 6.387,
+          "guesses": 3,
+          "questions": 9,
+          "winner": "DG1"
+        }
+      ],
+      "index": 132,
+      "secret": "013305"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783572,
+          "duration_s": 6.639,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783573,
+          "duration_s": 6.774,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 133,
+      "secret": "875342"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783574,
+          "duration_s": 10.029,
+          "guesses": 2,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783575,
+          "duration_s": 10.826,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 134,
+      "secret": "418087"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783576,
+          "duration_s": 12.561,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783577,
+          "duration_s": 11.306,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 135,
+      "secret": "323485"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783578,
+          "duration_s": 8.068,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783579,
+          "duration_s": 9.12,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 136,
+      "secret": "213054"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783580,
+          "duration_s": 15.155,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783581,
+          "duration_s": 15.206,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 137,
+      "secret": "510463"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783582,
+          "duration_s": 21.341,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783583,
+          "duration_s": 21.345,
+          "guesses": 2,
+          "questions": 12,
+          "winner": "DG1"
+        }
+      ],
+      "index": 138,
+      "secret": "294813"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783584,
+          "duration_s": 8.078,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783585,
+          "duration_s": 8.097,
+          "guesses": 3,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 139,
+      "secret": "710594"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783586,
+          "duration_s": 22.769,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783587,
+          "duration_s": 21.609,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 140,
+      "secret": "768890"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783588,
+          "duration_s": 23.255,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783589,
+          "duration_s": 22.102,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        }
+      ],
+      "index": 141,
+      "secret": "069946"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783590,
+          "duration_s": 4.139,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783591,
+          "duration_s": 4.186,
+          "guesses": 3,
+          "questions": 8,
+          "winner": "DG1"
+        }
+      ],
+      "index": 142,
+      "secret": "343571"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783592,
+          "duration_s": 14.858,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG3"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783593,
+          "duration_s": 14.804,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 143,
+      "secret": "469921"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783594,
+          "duration_s": 15.605,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783595,
+          "duration_s": 14.898,
+          "guesses": 1,
+          "questions": 10,
+          "winner": "DG1"
+        }
+      ],
+      "index": 144,
+      "secret": "939028"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783596,
+          "duration_s": 20.66,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783597,
+          "duration_s": 19.74,
+          "guesses": 3,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 145,
+      "secret": "540871"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783598,
+          "duration_s": 22.555,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783599,
+          "duration_s": 22.055,
+          "guesses": 3,
+          "questions": 13,
+          "winner": "DG3"
+        }
+      ],
+      "index": 146,
+      "secret": "423145"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783600,
+          "duration_s": 2.143,
+          "guesses": 1,
+          "questions": 7,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783601,
+          "duration_s": 2.137,
+          "guesses": 1,
+          "questions": 7,
+          "winner": "DG3"
+        }
+      ],
+      "index": 147,
+      "secret": "306232"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783602,
+          "duration_s": 22.396,
+          "guesses": 3,
+          "questions": 15,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783603,
+          "duration_s": 21.461,
+          "guesses": 3,
+          "questions": 14,
+          "winner": "DG1"
+        }
+      ],
+      "index": 148,
+      "secret": "659962"
+    },
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783604,
+          "duration_s": 11.786,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG1"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783605,
+          "duration_s": 11.754,
+          "guesses": 2,
+          "questions": 11,
+          "winner": "DG3"
+        }
+      ],
+      "index": 149,
+      "secret": "979058"
+    }
+  ],
+  "schema_version": 1,
+  "secrets": [
+    "036897",
+    "392869",
+    "517072",
+    "605524",
+    "868479",
+    "708046",
+    "459616",
+    "546835",
+    "716843",
+    "396845",
+    "957601",
+    "614368",
+    "069520",
+    "859530",
+    "395130",
+    "737951",
+    "028231",
+    "061613",
+    "623701",
+    "968623",
+    "865784",
+    "150043",
+    "657872",
+    "625361",
+    "064872",
+    "252383",
+    "901056",
+    "091967",
+    "734180",
+    "107468",
+    "802936",
+    "082845",
+    "195707",
+    "472827",
+    "708692",
+    "160239",
+    "573791",
+    "734141",
+    "908641",
+    "895546",
+    "404273",
+    "957170",
+    "904787",
+    "321703",
+    "519278",
+    "549123",
+    "754645",
+    "716068",
+    "872604",
+    "987523",
+    "196073",
+    "268846",
+    "812637",
+    "082937",
+    "648451",
+    "510387",
+    "803215",
+    "183520",
+    "625108",
+    "425156",
+    "540163",
+    "367946",
+    "328485",
+    "367648",
+    "104238",
+    "630747",
+    "501646",
+    "731804",
+    "608413",
+    "891605",
+    "852430",
+    "037759",
+    "236895",
+    "814651",
+    "138594",
+    "764235",
+    "120014",
+    "690751",
+    "908141",
+    "761619",
+    "376683",
+    "810697",
+    "701035",
+    "740406",
+    "796471",
+    "974259",
+    "782697",
+    "456232",
+    "364641",
+    "715054",
+    "731197",
+    "563726",
+    "605869",
+    "262086",
+    "763329",
+    "352086",
+    "672498",
+    "072328",
+    "085564",
+    "743020",
+    "832398",
+    "716827",
+    "595372",
+    "892053",
+    "203476",
+    "971428",
+    "347138",
+    "080652",
+    "410205",
+    "180394",
+    "894762",
+    "645074",
+    "817480",
+    "725152",
+    "873609",
+    "245897",
+    "345576",
+    "498304",
+    "848351",
+    "607165",
+    "624356",
+    "698305",
+    "284310",
+    "379421",
+    "393189",
+    "576107",
+    "582701",
+    "201536",
+    "140586",
+    "485193",
+    "274401",
+    "973826",
+    "013305",
+    "875342",
+    "418087",
+    "323485",
+    "213054",
+    "510463",
+    "294813",
+    "710594",
+    "768890",
+    "069946",
+    "343571",
+    "469921",
+    "939028",
+    "540871",
+    "423145",
+    "306232",
+    "659962",
+    "979058"
+  ]
+}

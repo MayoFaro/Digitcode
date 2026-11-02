@@ -1,0 +1,44 @@
+{
+  "config": {
+    "dg1_time_budget_s": 0.25,
+    "games": 20,
+    "seed": 20261102
+  },
+  "pairs": [
+    {
+      "games": [
+        {
+          "dg1_starts": true,
+          "dg2_seed": 20261162783306,
+          "duration_s": 109.604,
+          "guesses": 3,
+          "questions": 12,
+          "winner": "DG2"
+        },
+        {
+          "dg1_starts": false,
+          "dg2_seed": 20261162783307,
+          "duration_s": 59.621,
+          "guesses": 1,
+          "questions": 11,
+          "winner": "DG1"
+        }
+      ],
+      "index": 0,
+      "secret": "036897"
+    }
+  ],
+  "schema_version": 1,
+  "secrets": [
+    "036897",
+    "392869",
+    "517072",
+    "605524",
+    "868479",
+    "708046",
+    "459616",
+    "546835",
+    "716843",
+    "396845"
+  ]
+}
