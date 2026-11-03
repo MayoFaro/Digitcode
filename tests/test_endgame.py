@@ -48,7 +48,7 @@ def test_a_candidate_is_inconsistent_with_an_answer_outside_its_class():
     # Rebuild the clue for the SECOND answer and check the first-class
     # candidate is rejected by it.
     raw_q = next(r for r in s.enumerate_all_questions(Clue()) if r["label"] == q.label)
-    child = s._apply_answer_to_clue(Clue(), raw_q, q.answers[1], 0)
+    child = s._apply_answer_to_clue(Clue(), raw_q, q.answers[1])
     assert not code_consistent(candidates[idx_in_first], child)
 
 

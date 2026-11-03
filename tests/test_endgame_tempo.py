@@ -102,7 +102,7 @@ def test_catalog_covers_all_unasked_questions_including_known_segments():
     for q in qs:
         assert sum(q.classes) == (1 << len(candidates)) - 1
         for answer, mask in zip(q.answers, q.classes):
-            child = s._apply_answer_to_clue(Clue(), {"qtype": q.qtype, "label": q.label}, answer, 0)
+            child = s._apply_answer_to_clue(Clue(), {"qtype": q.qtype, "label": q.label}, answer)
             for i, candidate in enumerate(candidates):
                 assert code_consistent(candidate, child) == bool(mask & (1 << i))
 

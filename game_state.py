@@ -151,7 +151,7 @@ def _question_solution_counts(
     for out in q["outcomes"]:
         if should_cancel():
             raise Cancelled()
-        child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+        child_clue = solver._apply_answer_to_clue(clue, q, out["answer"])
         child = _child_solver(solver, child_clue)
         if child is None:
             continue
@@ -198,7 +198,7 @@ def _ev_plus_questions(
         n_trap = 0
         counts: dict[int, bool] = {}
         for out in q["outcomes"]:
-            child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+            child_clue = solver._apply_answer_to_clue(clue, q, out["answer"])
             child = _child_solver(solver, child_clue)
             if child is None:
                 continue

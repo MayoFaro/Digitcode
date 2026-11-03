@@ -222,7 +222,7 @@ class _FakeSolver:
     ever threads its return value straight into _child_solver, so a plain
     passthrough is enough to drive the fake."""
 
-    def _apply_answer_to_clue(self, clue, q, answer, meta):
+    def _apply_answer_to_clue(self, clue, q, answer):
         return answer
 
 

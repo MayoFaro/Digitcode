@@ -96,7 +96,7 @@ def build_universe(
         for out in q["outcomes"]:
             if should_cancel():
                 raise Cancelled()
-            child = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+            child = solver._apply_answer_to_clue(clue, q, out["answer"])
             mask = 0
             for i, code in enumerate(candidates):
                 if code_consistent(code, child):

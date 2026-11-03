@@ -35,7 +35,7 @@ def random_board(seed: int, target: int):
             return s, clue
         q = rng.choice(s.enumerate_all_questions(clue))
         for out in q["outcomes"]:
-            child = s._apply_answer_to_clue(clue, q, out["answer"], 0)
+            child = s._apply_answer_to_clue(clue, q, out["answer"])
             if code_consistent(code, child):
                 clue = child
                 break

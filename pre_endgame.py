@@ -128,7 +128,7 @@ def evaluate_pre_endgame(clue, a_me, a_opp, excluded=frozenset(), opp_fail_pool_
                 branches = []
                 for answer in spec['answers']:
                     check()
-                    child_clue = solver._apply_answer_to_clue(clue, spec, answer, 0)
+                    child_clue = solver._apply_answer_to_clue(clue, spec, answer)
                     child = DigitcodeSolver()
                     child.domains = {p: set(ds) for p, ds in solver.domains.items()}
                     try:

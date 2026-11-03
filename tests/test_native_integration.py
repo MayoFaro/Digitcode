@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QApplication
 
 def test_setting_a_row_total_from_the_chiffres_panel_updates_every_panel(qapp):
     window = MainWindow()
-    chiffres, comparaisons, solutions, ev = window.panels
+    chiffres, _, solutions, ev = window.panels
 
     chiffres._select_row_letter("J")
     reachable = window.game_state.payload()["reachable_row_sums"]["J"]
@@ -25,7 +25,7 @@ def test_a_rejected_clue_leaves_every_panel_unchanged(qapp):
     # own hide()/show() calls -- it is always False until the top-level
     # window itself is shown (see tests/test_native_main_window.py).
     window.show()
-    chiffres, comparaisons, solutions, ev = window.panels
+    chiffres, _, solutions, ev = window.panels
 
     # Same contradiction fixture as tests/test_web.py's
     # test_post_clue_contradiction_rolls_back_and_returns_400: parity Pair on

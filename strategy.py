@@ -98,7 +98,7 @@ def _question_branches(
     sum to 1."""
     branches = []
     for out in q["outcomes"]:
-        child_clue = solver._apply_answer_to_clue(clue, q, out["answer"], 0)
+        child_clue = solver._apply_answer_to_clue(clue, q, out["answer"])
         child_solver = _solver_for(solver, child_clue)
         if child_solver is None:
             continue
@@ -286,10 +286,7 @@ def _opponent_has_no_safe_question(child_solver: DigitcodeSolver, child_clue: Cl
     outcome that leaves a small, exactly-known number of candidates. A
     single question with a risky-looking outcome among several safe ones
     doesn't count -- a rational opponent just avoids that one question, so
-    only "every option is risky" is a genuine trap (same "no safe move"
-    concept as the pre-existing, unused `evaluate_forcing_questions` in
-    solver.py, adapted to reuse data already computed here instead of its
-    own separate exhaustive check).
+    only "every option is risky" is a genuine trap.
 
     A question with NO outcome below the exact-vs-capped boundary is
     "safe": reuses `enumerate_all_questions`'s own per-outcome `n` field,

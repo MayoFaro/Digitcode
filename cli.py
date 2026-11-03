@@ -29,7 +29,6 @@ Commandes :
 
 ROW_LETTERS = set("JKLMNOPQRS")
 COL_LETTERS = set("ABCDEFGHI")
-POS = set("TUVWXY")
 
 def clone_clue(c: Clue) -> Clue:
     nc = Clue()

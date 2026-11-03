@@ -78,23 +78,23 @@ def test_null_question_action_round_trips_through_apply_answer_to_clue():
     clue = Clue()
 
     seg = _null_question_action("seg", "T.a on/off ?", {"clue_type": "segment", "pos": "T", "seg": "a", "value": True})
-    child = solver._apply_answer_to_clue(clue, seg.question, seg.question["outcomes"][0]["answer"], 0)
+    child = solver._apply_answer_to_clue(clue, seg.question, seg.question["outcomes"][0]["answer"])
     assert child.segment_state[("T", "a")] is True
 
     parity = _null_question_action("parity", "T pair/impair ?", {"clue_type": "parity", "pos": "T", "value": "Pair"})
-    child = solver._apply_answer_to_clue(clue, parity.question, parity.question["outcomes"][0]["answer"], 0)
+    child = solver._apply_answer_to_clue(clue, parity.question, parity.question["outcomes"][0]["answer"])
     assert child.parity["T"] == "Pair"
 
     row = _null_question_action("row", "Combien en ligne K ?", {"clue_type": "row_total", "row": "K", "value": 7})
-    child = solver._apply_answer_to_clue(clue, row.question, row.question["outcomes"][0]["answer"], 0)
+    child = solver._apply_answer_to_clue(clue, row.question, row.question["outcomes"][0]["answer"])
     assert child.row_totals["K"] == 7
 
     col = _null_question_action("col", "Combien en colonne H ?", {"clue_type": "col_total", "col": "H", "value": 3})
-    child = solver._apply_answer_to_clue(clue, col.question, col.question["outcomes"][0]["answer"], 0)
+    child = solver._apply_answer_to_clue(clue, col.question, col.question["outcomes"][0]["answer"])
     assert child.col_totals["H"] == 3
 
     comparison = _null_question_action(
         "cmp", "Qui est plus grand, T ou U ?", {"clue_type": "comparison", "left": "T", "rel": ">", "right": "U"},
     )
-    child = solver._apply_answer_to_clue(clue, comparison.question, comparison.question["outcomes"][0]["answer"], 0)
+    child = solver._apply_answer_to_clue(clue, comparison.question, comparison.question["outcomes"][0]["answer"])
     assert ("T", ">", "U") in child.comparisons

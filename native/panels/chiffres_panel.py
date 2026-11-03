@@ -34,7 +34,6 @@ class ChiffresPanel(QWidget):
         self.scroll_area.setWidget(content)
         outer.addWidget(self.scroll_area)
         layout = QVBoxLayout(content)
-        self.content_layout = layout
 
         layout.addWidget(QLabel("Chiffres"))
         self.domains_grid = QGridLayout()

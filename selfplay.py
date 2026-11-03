@@ -155,7 +155,7 @@ def _answer_question(question: dict, clue: Clue, secret: Candidate) -> tuple[str
     """Let the referee answer a public question without revealing ``secret``."""
     solver = DigitcodeSolver()
     for outcome in question["outcomes"]:
-        child = solver._apply_answer_to_clue(clue, question, outcome["answer"], 0)
+        child = solver._apply_answer_to_clue(clue, question, outcome["answer"])
         if code_consistent(secret, child):
             return outcome["answer"], child
     raise RuntimeError("Question légale sans réponse pour le code secret")

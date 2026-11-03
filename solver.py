@@ -512,98 +512,6 @@ class DigitcodeSolver:
         res.sort(key=lambda r: (type_rank.get(r["qtype"],3), r["label"]))
         return res
 
-    # ----------------- détection des “forcing” -----------------
-    def evaluate_forcing_questions(self, clue: Clue, strict: bool = True):
-        results = []
-        my_qs = self.enumerate_all_questions(clue)
-
-        def child_has_safe_question(child_clue: Clue) -> bool:
-            tmp = DigitcodeSolver()
-            tmp.domains = self._clone_domains(self.domains)
-            try:
-                tmp.propagate(child_clue)
-            except Exception:
-                return False
-
-            opp_all = tmp.enumerate_all_questions(child_clue)
-
-            def is_safe(q2):
-                return all(o["n"] is None or o["n"] >= 3 for o in q2["outcomes"])
-
-            return any(is_safe(q2) for q2 in opp_all)
-
-        for q in my_qs:
-            forcing_answers = []
-            samples_next = set()
-            total_answers = len(q["outcomes"])
-            if total_answers == 0:
-                continue
-
-            for out in q["outcomes"]:
-                ans = out["answer"]
-
-                child = self._clone_clue(clue)
-                if q["qtype"] == "row":
-                    row = q["label"].split()[-2]
-                    child.row_totals[row] = int(ans)
-                elif q["qtype"] == "col":
-                    col = q["label"].split()[-2]
-                    child.col_totals[col] = int(ans)
-                elif q["qtype"] == "parity":
-                    p = q["label"].split()[0]
-                    if ans in ("Pair", "Impair"):
-                        child.parity[p] = ans
-                elif q["qtype"] == "cmp":
-                    parts = q["label"].split()
-                    a, b = parts[-4], parts[-2]
-                    child.comparisons.append((a, ">", b) if ">" in ans else (a, "<", b))
-                elif q["qtype"] == "seg":
-                    p, seg = q["label"].split()[0].split(".")
-                    child.segment_state[(p, seg)] = (ans == "on")
-
-                if strict:
-                    tmp_now = DigitcodeSolver()
-                    tmp_now.domains = self._clone_domains(self.domains)
-                    try:
-                        tmp_now.propagate(child)
-                    except Exception:
-                        continue
-                    n_now = len(tmp_now.enumerate_solutions(child, limit=3))
-                    if n_now <= 2:
-                        forcing_answers = []
-                        samples_next = set()
-                        total_answers = 0
-                        break
-
-                if not child_has_safe_question(child):
-                    forcing_answers.append(ans)
-                    tmp = DigitcodeSolver()
-                    tmp.domains = self._clone_domains(self.domains)
-                    try:
-                        tmp.propagate(child)
-                        risky = tmp.evaluate_global_questions(child)
-                        for r in risky[:2]:
-                            samples_next.add(r["label"])
-                    except Exception:
-                        pass
-
-            if forcing_answers and total_answers > 0:
-                results.append({
-                    "qtype": q["qtype"],
-                    "label": q["label"],
-                    "coverage": f"{len(forcing_answers)}/{total_answers}",
-                    "guarantee": (len(forcing_answers) == total_answers),
-                    "forcing_answers": forcing_answers,
-                    "samples": sorted(samples_next)
-                })
-
-        type_rank = {"row": 0, "col": 0, "parity": 1, "cmp": 2, "seg": 3}
-        def cov_key(x):
-            a, b = x["coverage"].split("/")
-            return (type_rank.get(x["qtype"], 3), not x["guarantee"], -(int(a) / int(b) if int(b) else 0))
-        results.sort(key=cov_key)
-        return results
-
     # ===================== EV METRICS (exact, uniform over solutions) =====================
     def _dfs_count(self, dom, clue: Clue, cap: Optional[int]=None, excluded: frozenset = frozenset()) -> int:
         count = 0
@@ -742,7 +650,7 @@ class DigitcodeSolver:
             if off_possible: res.append(("off", 0))
         return res
 
-    def _apply_answer_to_clue(self, base: Clue, q: dict, ans_label: str, ans_meta: int) -> Clue:
+    def _apply_answer_to_clue(self, base: Clue, q: dict, ans_label: str) -> Clue:
         child = self._clone_clue(base)
         qt = q["qtype"]
         if qt == "row":
@@ -772,8 +680,8 @@ class DigitcodeSolver:
             return 0.0, 0, []
         ev = 0.0
         details = []
-        for (ans_label, meta) in self._list_question_values(clue, q):
-            child = self._apply_answer_to_clue(clue, q, ans_label, meta)
+        for (ans_label, _) in self._list_question_values(clue, q):
+            child = self._apply_answer_to_clue(clue, q, ans_label)
             n_r = self.count_solutions_exact(child, cap=cap)
             win_flag = 0
             if n_r == 1:
@@ -816,7 +724,7 @@ class DigitcodeSolver:
             elif win_flag == 2:
                 ev_depth1 += prob * 0.5
             else:
-                child = self._apply_answer_to_clue(clue, q, ans_label, 0)
+                child = self._apply_answer_to_clue(clue, q, ans_label)
                 opp_ev = self._best_opponent_ev_immediate(child, cap=cap)
                 ev_depth1 += prob * (1.0 - opp_ev)
                 mass_bad += n_r

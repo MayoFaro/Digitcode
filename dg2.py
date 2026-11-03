@@ -22,7 +22,6 @@ class DG2Recommendation:
     action: Action
     value: float
     exact: bool
-    rationale: str
 
 
 class _BudgetExceeded(Exception):
@@ -184,7 +183,7 @@ class DG2Policy:
                 continue
             branches = []
             for outcome in question["outcomes"]:
-                child_clue = solver._apply_answer_to_clue(clue, question, outcome["answer"], 0)
+                child_clue = solver._apply_answer_to_clue(clue, question, outcome["answer"])
                 child = DigitcodeSolver()
                 child.domains = {p: set(values) for p, values in solver.domains.items()}
                 try:
@@ -223,23 +222,21 @@ class DG2Policy:
     def recommend(self, observation: Observation) -> DG2Recommendation:
         solver = self._solver(observation.clue)
         if observation.my_attempts <= 0:
-            return DG2Recommendation(EndTurn(), 0.0, True, "Aucun essai restant")
+            return DG2Recommendation(EndTurn(), 0.0, True)
         sols = solver.enumerate_solutions(observation.clue, limit=self.exact_n_max + 1)
         if not sols:
-            return DG2Recommendation(EndTurn(), 0.0, False, "Aucun candidat public")
+            return DG2Recommendation(EndTurn(), 0.0, False)
         if len(sols) > self.exact_n_max:
             # One question has already been consumed this turn.  DG2 may
             # either propose or pass now, never ask a second question.  The
             # broad-board policy deliberately preserves both attempts for a
             # later exact position instead of fabricating a threshold guess.
             if observation.after_question:
-                return DG2Recommendation(EndTurn(), 0.5, False,
-                                         "Fin de tour : analyse exacte pas encore disponible")
+                return DG2Recommendation(EndTurn(), 0.5, False)
             question = self._broad_question(solver, observation.clue)
             if question is None:
-                return DG2Recommendation(EndTurn(), 0.5, False, "Recherche publique insuffisante")
-            return DG2Recommendation(Ask(question), 0.5, False,
-                                     "Question à réduction espérée maximale")
+                return DG2Recommendation(EndTurn(), 0.5, False)
+            return DG2Recommendation(Ask(question), 0.5, False)
 
         candidates = [tuple(sol[p] for p in POSITIONS) for sol in sols]
         _, questions = universe_from_solutions(sols, observation.clue)
@@ -252,9 +249,8 @@ class DG2Policy:
                 wait = planner.value(public, excluded, observation.my_attempts, observation.opponent_attempts, False, asked)
                 guess_value, guesses = planner.best_guess(public, excluded, observation.my_attempts, observation.opponent_attempts, asked)
                 if guess_value >= wait:
-                    return DG2Recommendation(Guess(candidates[self.rng.choice(guesses)]), guess_value, True,
-                                             "Proposer vaut au moins autant que passer")
-                return DG2Recommendation(EndTurn(), wait, True, "Passer vaut davantage que proposer")
+                    return DG2Recommendation(Guess(candidates[self.rng.choice(guesses)]), guess_value, True)
+                return DG2Recommendation(EndTurn(), wait, True)
 
             direct, guesses = planner.best_guess(public, excluded, observation.my_attempts, observation.opponent_attempts, asked)
             mine = public & ~excluded
@@ -270,13 +266,12 @@ class DG2Policy:
             choices = [qi for value, qi in options if abs(value - best) < 1e-12]
             chosen = self.rng.choice(choices)
             if chosen is None:
-                return DG2Recommendation(Guess(candidates[self.rng.choice(guesses)]), best, True,
-                                         "Proposition directe de valeur maximale")
+                return DG2Recommendation(Guess(candidates[self.rng.choice(guesses)]), best, True)
             question = next(q for qi, q in planner._informative(public, asked) if qi == chosen)
             raw = next(q for q in solver.enumerate_all_questions(observation.clue) if q["label"] == question.label)
-            return DG2Recommendation(Ask(raw), best, True, "Question de valeur de victoire maximale")
+            return DG2Recommendation(Ask(raw), best, True)
         except _BudgetExceeded:
-            return DG2Recommendation(EndTurn(), 0.5, False, "Budget de recherche DG2 dépassé")
+            return DG2Recommendation(EndTurn(), 0.5, False)
 
     def choose(self, observation: Observation) -> Action:
         return self.recommend(observation).action
