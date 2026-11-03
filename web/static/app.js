@@ -414,8 +414,8 @@ function render(state) {
   shownResult = result;
   document.getElementById("result-clear").disabled = !result;
   document.getElementById("result-status").textContent = result
-    ? `Résultat enregistré : ${result.winner === "me" ? "Moi" : "Adversaire"} — ${result.code.slice(0, 3)} ${result.code.slice(3)}. Archivé à la réinitialisation.`
-    : "Résultat non renseigné. À enregistrer avant de réinitialiser.";
+    ? `Résultat enregistré et archivé : ${result.winner === "me" ? "Moi" : "Adversaire"} — ${result.code.slice(0, 3)} ${result.code.slice(3)}.`
+    : "Résultat non renseigné.";
 
 
   const domainsEl = document.getElementById("domains");

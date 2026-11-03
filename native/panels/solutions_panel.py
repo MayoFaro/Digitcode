@@ -391,9 +391,9 @@ class SolutionsPanel(QWidget):
         if result:
             winner = "Moi" if result["winner"] == "me" else "Adversaire"
             code = result["code"]
-            self.result_label.setText(f"Résultat enregistré : {winner} — {code[:3]} {code[3:]}. Archivé à la réinitialisation.")
+            self.result_label.setText(f"Résultat enregistré et archivé : {winner} — {code[:3]} {code[3:]}.")
         else:
-            self.result_label.setText("Résultat non renseigné. À enregistrer avant de réinitialiser.")
+            self.result_label.setText("Résultat non renseigné.")
 
         archive = self.game_state.last_archive_path
         self.archive_label.setVisible(archive is not None)

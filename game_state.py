@@ -739,7 +739,13 @@ class GameState:
         return self.payload()
 
     def record_result(self, body: dict) -> dict:
-        """Record the observed outcome for archives, without changing solver evidence."""
+        """Record and immediately archive the observed outcome.
+
+        A result is the natural end of a game.  Waiting for a later reset to
+        persist it made the prominent “Enregistrer / corriger” control
+        misleading and could lose a completed game.  Build the entry first,
+        but roll it back if the atomic archive write fails.
+        """
         if not isinstance(body, dict):
             raise ValueError("Résultat invalide : joueur et code requis.")
         who = body.get("who")
@@ -751,8 +757,14 @@ class GameState:
         code = "".join(code.split())
         if len(code) != 6 or any(c not in "0123456789" for c in code):
             raise ValueError("Saisissez un code de six chiffres (exemple : 064 147).")
+        previous_result = self.result
         self.result = {"winner": who, "code": code,
                        "recorded_at": datetime.now(timezone.utc).isoformat()}
+        try:
+            self.last_archive_path = str(save_game(self, reason="result_recorded"))
+        except ValueError:
+            self.result = previous_result
+            raise
         return self.payload()
 
     def clear_result(self) -> dict:

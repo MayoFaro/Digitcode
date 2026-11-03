@@ -14,16 +14,17 @@ def game(monkeypatch):
 
 
 @pytest.mark.parametrize("who", ["me", "opponent"])
-def test_result_archived_even_without_clues_and_reset_clears_it(game, who):
+def test_result_is_archived_immediately_even_without_clues(game, who):
     game.record_result({"who": who, "code": "064 147"})
     assert game.result["code"] == "064147"
     assert game.result["winner"] == who
     assert game.a_me == game.a_opp == 2
-    game.reset()
     archive = json.loads(next(archive_directory().glob("*.json")).read_text())
+    assert archive["reason"] == "result_recorded"
     assert archive["result"]["code"] == "064147"
     assert archive["result"]["winner"] == who
     assert archive["result"]["recorded_at"]
+    game.reset()
     assert game.result is None
 
 
@@ -59,7 +60,8 @@ def test_archive_failure_preserves_result(game, monkeypatch):
         raise OSError("unavailable")
     monkeypatch.setattr(game_archive.os, "replace", fail)
     with pytest.raises(ValueError):
-        game.reset()
+        game.record_result({"who": "me", "code": "684147"})
+    assert game.result["winner"] == "opponent"
     assert game.result["code"] == "064147"
 
 

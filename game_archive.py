@@ -43,7 +43,7 @@ def _tracking_record(snapshot: dict) -> dict:
     return {**snapshot, "excluded": [list(code) for code in sorted(snapshot["excluded"])]}
 
 
-def save_game(game: GameState) -> Path:
+def save_game(game: GameState, *, reason: str = "reset") -> Path:
     """Persist all recorded game state. Never mutate the game on failure.
 
     Write a private temporary file, flush it, then atomically publish it.
@@ -56,7 +56,7 @@ def save_game(game: GameState) -> Path:
         "schema_version": 1,
         "started_at": game.started_at.isoformat(),
         "saved_at": saved_at.isoformat(),
-        "reason": "reset",
+        "reason": reason,
         "result": game.result,
         "state": {
             "clue": _clue_record(game.clue),
@@ -89,9 +89,10 @@ def save_game(game: GameState) -> Path:
         os.replace(temporary, target)
         return target
     except (OSError, TypeError, ValueError) as exc:
+        action = "Réinitialisation annulée" if reason == "reset" else "Enregistrement annulé"
         raise ValueError(
             f"Sauvegarde impossible dans {directory} : {exc}. "
-            "Réinitialisation annulée ; la partie en cours est conservée."
+            f"{action} ; la partie en cours est conservée."
         ) from exc
     finally:
         if temporary is not None:
