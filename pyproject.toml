@@ -20,3 +20,25 @@ package-dir = {"digitcode" = "."}
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.deptry.per_rule_ignores]
+# pytest/vulture/deptry are dev tools invoked from the command line, never imported.
+DEP002 = ["pytest", "vulture", "deptry"]
+# package-dir maps "digitcode" to ".", so the package imports itself by its
+# installed name; deptry sees that as a transitive import instead of a
+# self-reference.
+DEP003 = ["digitcode"]
+
+[tool.vulture]
+exclude = ["*/__pycache__/*", "digitcode.egg-info/*"]
+min_confidence = 60
+# Qt calls these by name on QWidget subclasses; Flask calls the @app.get/
+# @app.post handlers by route; pytest calls fixtures by name/dependency
+# injection. None of these are referenced directly in source.
+ignore_decorators = ["@app.get", "@app.post", "@pytest.fixture"]
+# qapp: pytest fixture parameter requested for its setup side effect
+# (instantiating a QApplication), not for its value.
+# kwargs: catch-all parameter kept only to match a monkeypatched method's
+# call signature in test doubles.
+# paintEvent/mouseMoveEvent: QWidget overrides invoked by Qt's event loop.
+ignore_names = ["qapp", "kwargs", "paintEvent", "mouseMoveEvent"]
